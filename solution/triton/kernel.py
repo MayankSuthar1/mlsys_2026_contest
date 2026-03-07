@@ -146,6 +146,19 @@ def _ensure_cuda(*tensors):
         raise RuntimeError("CUDA is required to run this kernel; no CUDA device available.")
     return torch.device('cuda')
 
+def _validate_output(output: torch.Tensor, T: int, H: int) -> torch.Tensor:
+    if not isinstance(output, torch.Tensor):
+        raise TypeError("output must be a torch.Tensor.")
+    if output.shape != (T, H):
+        raise ValueError(f"output must have shape {(T, H)}, got {tuple(output.shape)}.")
+    return output
+
+def _write_output(output: torch.Tensor, out_accum: torch.Tensor) -> None:
+    if output.device == out_accum.device and output.dtype == out_accum.dtype:
+        output.copy_(out_accum)
+        return
+    output.copy_(out_accum.to(device=output.device, dtype=output.dtype))
+
 @torch.no_grad()
 def run(
     routing_logits: torch.Tensor,
@@ -158,6 +171,7 @@ def run(
     gemm2_weights_scale: torch.Tensor,
     local_expert_offset: int,
     routed_scaling_factor: float,
+    output: torch.Tensor,
 ):
     H = 7168
     I = 2048
@@ -172,10 +186,10 @@ def run(
     NUM_G1_BLOCKS = (2 * I) // BLOCK     # 32
 
     T = int(routing_logits.shape[0])
+    output = _validate_output(output, T, H)
 
     device = _ensure_cuda(routing_logits, routing_bias, hidden_states, hidden_states_scale,
                           gemm1_weights, gemm1_weights_scale, gemm2_weights, gemm2_weights_scale)
-    orig_device = routing_logits.device
 
     # Move tensors to CUDA contiguous
     routing_logits_cu = _check_cuda_and_move(routing_logits, device).contiguous()
@@ -222,7 +236,8 @@ def run(
     expert_idx_flat = topk_idx[valid_mask] - local_start
     
     if token_idx_flat.numel() == 0:
-        return torch.zeros((T, H), dtype=torch.bfloat16, device=orig_device)
+        output.zero_()
+        return
         
     sorted_indices = torch.argsort(expert_idx_flat)
     sorted_tokens = token_idx_flat[sorted_indices].to(torch.int32).contiguous()
@@ -261,7 +276,8 @@ def run(
             
     total_blocks = len(block_expert_id)
     if total_blocks == 0:
-        return torch.zeros((T, H), dtype=torch.bfloat16, device=orig_device)
+        output.zero_()
+        return
         
     b_expert_id = torch.tensor(block_expert_id, dtype=torch.int32, device=device)
     b_token_offset = torch.tensor(block_token_offset, dtype=torch.int32, device=device)
@@ -296,7 +312,4 @@ def run(
         num_stages=3
     )
 
-    if orig_device.type != 'cuda':
-        out_accum = out_accum.cpu()
-
-    return out_accum.to(torch.bfloat16)
+    _write_output(output, out_accum.to(torch.bfloat16))

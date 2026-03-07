@@ -75,8 +75,6 @@ def run_benchmark(solution: Solution, config: BenchmarkConfig = None) -> dict:
             if trace.evaluation.correctness:
                 entry["max_abs_error"] = trace.evaluation.correctness.max_absolute_error
                 entry["max_rel_error"] = trace.evaluation.correctness.max_relative_error
-            if trace.evaluation.log:
-                entry["log"] = trace.evaluation.log
             results[definition.name][trace.workload.uuid] = entry
 
     return results
@@ -84,7 +82,6 @@ def run_benchmark(solution: Solution, config: BenchmarkConfig = None) -> dict:
 
 def print_results(results: dict):
     """Print benchmark results in a formatted way."""
-    error_log_printed = False
     for def_name, traces in results.items():
         print(f"\n{def_name}:")
         for workload_uuid, result in traces.items():
@@ -103,16 +100,6 @@ def print_results(results: dict):
                 print(f" | abs_err={abs_err:.2e}, rel_err={rel_err:.2e}", end="")
 
             print()
-
-            # Print error log once for COMPILE_ERROR or RUNTIME_ERROR
-            if not error_log_printed and status in ("COMPILE_ERROR", "RUNTIME_ERROR") and result.get("log"):
-                print(f"\n  === ERROR LOG (first occurrence) ===")
-                # Print last 80 lines to keep it manageable
-                log_lines = result["log"].strip().splitlines()
-                for line in log_lines[-80:]:
-                    print(f"    {line}")
-                print(f"  === END ERROR LOG ===\n")
-                error_log_printed = True
 
 
 @app.local_entrypoint()
