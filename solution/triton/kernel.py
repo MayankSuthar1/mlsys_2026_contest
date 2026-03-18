@@ -133,8 +133,10 @@ def _moe_gemm2_kernel(
         w2_fp8  = tl.load(w2_ptrs)
         sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
-        w2_f32 = w2_fp8.to(tl.float32) * sW2
-        o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32)
+        # ITER6: keep w2 as FP8 for dot, apply block scale to result
+        # (avoids element-wise scale of 128x128 weight tile before dot)
+        w2_f32 = w2_fp8.to(tl.float32)
+        o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
@@ -320,7 +322,7 @@ def run(
         num_stages=4,
     )
 
-    # GEMM2 — pass full sorted arrays (kernel only accesses valid range via token_offset)
+    # GEMM2
     _moe_gemm2_kernel[(NUM_H_BLOCKS, total_blocks)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
