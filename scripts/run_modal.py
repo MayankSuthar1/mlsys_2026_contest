@@ -64,6 +64,8 @@ def run_benchmark(solution: Solution, config: BenchmarkConfig = None) -> dict:
 
     for trace in traces:
         if trace.evaluation:
+            if trace.evaluation.status.value in ["RUNTIME_ERROR", "INCORRECT_NUMERICAL","COMPILE_ERROR"]:
+                print(f"Error evaluating trace {trace.workload.uuid}:\n{trace.evaluation}", file=sys.stderr)
             entry = {
                 "status": trace.evaluation.status.value,
                 "solution": trace.solution,
