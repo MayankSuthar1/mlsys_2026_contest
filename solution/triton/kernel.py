@@ -95,7 +95,6 @@ def _moe_gemm1_swiglu_kernel(
     configs=[
         triton.Config({'GROUP_BLOCKS': 1}, num_warps=4, num_stages=2),
         triton.Config({'GROUP_BLOCKS': 1}, num_warps=8, num_stages=3),
-        triton.Config({'GROUP_BLOCKS': 1}, num_warps=16, num_stages=3),
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=4, num_stages=2),
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=8, num_stages=3),
     ],
