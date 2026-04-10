@@ -93,12 +93,10 @@ def _moe_gemm1_swiglu_kernel(
 
 @triton.autotune(
     configs=[
-        triton.Config({'GROUP_BLOCKS': 1, 'BLOCK_N': 128}, num_warps=4, num_stages=2),
-        triton.Config({'GROUP_BLOCKS': 1, 'BLOCK_N': 128}, num_warps=8, num_stages=3),
-        triton.Config({'GROUP_BLOCKS': 4, 'BLOCK_N': 128}, num_warps=4, num_stages=2),
-        triton.Config({'GROUP_BLOCKS': 4, 'BLOCK_N': 128}, num_warps=8, num_stages=3),
-        triton.Config({'GROUP_BLOCKS': 1, 'BLOCK_N': 256}, num_warps=8, num_stages=3),
-        triton.Config({'GROUP_BLOCKS': 4, 'BLOCK_N': 256}, num_warps=8, num_stages=3),
+        triton.Config({'GROUP_BLOCKS': 1}, num_warps=4, num_stages=2),
+        triton.Config({'GROUP_BLOCKS': 1}, num_warps=8, num_stages=3),
+        triton.Config({'GROUP_BLOCKS': 4}, num_warps=4, num_stages=2),
+        triton.Config({'GROUP_BLOCKS': 4}, num_warps=8, num_stages=3),
     ],
     key=['TOTAL_BLOCKS', 'TOTAL_ROUTED'],
     reset_to_zero=['out_ptr'],
@@ -123,7 +121,7 @@ def _moe_gemm2_kernel(
     GROUP_BLOCKS:  tl.constexpr,
 ):
     pid = tl.program_id(0)
-    num_pid_n = tl.cdiv(NUM_H_BLOCKS * 128, BLOCK_N)
+    num_pid_n = NUM_H_BLOCKS
     num_pid_m = TOTAL_BLOCKS
     num_pid_in_group = GROUP_BLOCKS * num_pid_n
     group_id = pid // num_pid_in_group
@@ -139,7 +137,6 @@ def _moe_gemm2_kernel(
 
     offs_m = tl.arange(0, BLOCK_M)
     offs_n = nb * BLOCK_N + tl.arange(0, BLOCK_N)
-    mask_n = offs_n < (NUM_H_BLOCKS * 128)
     mask_m = offs_m < num_tokens
 
     tok_idx = tl.load(sorted_tokens_ptr + token_offset + offs_m, mask=mask_m, other=0)
@@ -154,21 +151,16 @@ def _moe_gemm2_kernel(
         c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0)
 
         w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
-        w2_fp8  = tl.load(w2_ptrs, mask=mask_n[:, None], other=0.0)
-        scale_idx = nb * (BLOCK_N // 128) + (tl.arange(0, BLOCK_N) // 128)
-        sW2 = tl.load(
-            s2_ptr + expert_id * stride_s2_e + scale_idx * stride_s2_hb + ib * stride_s2_ib,
-            mask=mask_n,
-            other=0.0,
-        )
+        w2_fp8  = tl.load(w2_ptrs)
+        sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
         # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
         w2_f32 = w2_fp8.to(tl.float32)
-        o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2[None, :]
+        o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
-    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None] & mask_n[None, :])
+    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None])
 
 
 # ---------------------------------------------------------------------------
@@ -349,8 +341,7 @@ def run(
     )
 
     # GEMM2
-    gemm2_grid = lambda META: (triton.cdiv(NUM_H_BLOCKS * 128, META['BLOCK_N']) * total_blocks,)
-    _moe_gemm2_kernel[gemm2_grid](
+    _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks,)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
         sorted_weights_all, sorted_tokens,
@@ -364,6 +355,7 @@ def run(
         NUM_H_BLOCKS=NUM_H_BLOCKS,
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
+        BLOCK_N=128,
     )
 
     output.copy_(out_accum)
