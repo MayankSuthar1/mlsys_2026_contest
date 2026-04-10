@@ -346,7 +346,7 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
         BLOCK_N=128,
-        GROUP_BLOCKS=8,
+        GROUP_BLOCKS=16,
         num_warps=8,
         num_stages=3,
     )
