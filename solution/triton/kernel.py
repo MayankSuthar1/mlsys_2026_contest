@@ -110,16 +110,8 @@ def _moe_gemm2_kernel(
     BLOCK_N:       tl.constexpr,
     GROUP_BLOCKS:  tl.constexpr,
 ):
-    pid = tl.program_id(0)
-    num_pid_n = NUM_H_BLOCKS
-    num_pid_m = TOTAL_BLOCKS
-    num_pid_in_group = GROUP_BLOCKS * num_pid_n
-    group_id = pid // num_pid_in_group
-    first_pid_m = group_id * GROUP_BLOCKS
-    group_size_m = min(num_pid_m - first_pid_m, GROUP_BLOCKS)
-    pid_in_group = pid % num_pid_in_group
-    block_id = first_pid_m + (pid_in_group % group_size_m)
-    nb = pid_in_group // group_size_m
+    block_id = tl.program_id(0)
+    nb = tl.program_id(1)
 
     expert_id    = tl.load(b_expert_id_ptr    + block_id)
     token_offset = tl.load(b_token_offset_ptr + block_id)
@@ -331,7 +323,7 @@ def run(
     )
 
     # GEMM2
-    _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks,)](
+    _moe_gemm2_kernel[(total_blocks, NUM_H_BLOCKS)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
         sorted_weights_all, sorted_tokens,
