@@ -119,7 +119,6 @@ def _moe_gemm2_kernel(
     BLOCK_I:       tl.constexpr,
     BLOCK_N:       tl.constexpr,
     GROUP_BLOCKS:  tl.constexpr,
-    OUT_INV_SCALE: tl.constexpr,
 ):
     pid = tl.program_id(0)
     num_pid_n = NUM_H_BLOCKS
@@ -161,7 +160,7 @@ def _moe_gemm2_kernel(
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
-    tl.atomic_add(out_ptrs, o_acc * OUT_INV_SCALE, mask=mask_m[:, None], sem="relaxed")
+    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None])
 
 
 # ---------------------------------------------------------------------------
@@ -319,8 +318,7 @@ def run(
 
     # Allocate workspace
     workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
-    OUT_SCALE = 64.0
-    out_accum = torch.zeros((T, H), dtype=torch.float16, device=device)
+    out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
 
     # GEMM1
     _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
@@ -358,7 +356,6 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
         BLOCK_N=128,
-        OUT_INV_SCALE=(1.0 / OUT_SCALE),
     )
 
-    output.copy_((out_accum.to(torch.float32) * OUT_SCALE).to(torch.bfloat16))
+    output.copy_(out_accum)
