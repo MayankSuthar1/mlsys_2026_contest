@@ -305,6 +305,12 @@ def run(
 
     # ---- Routed token ids used by GEMM kernels ----
     sorted_tokens = sorted_tokens_all[:total_routed]
+    sorted_tokens_i64 = sorted_tokens.to(torch.int64)
+
+    # Pre-gather to make GEMM1 A/scale loads contiguous in routed-token order.
+    hidden_states_gathered = hidden_states.index_select(0, sorted_tokens_i64)
+    hidden_states_scale_gathered = hidden_states_scale.index_select(1, sorted_tokens_i64)
+    sorted_tokens_gemm1 = torch.arange(total_routed, device=device, dtype=torch.int32)
 
     # Allocate workspace
     workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
@@ -312,13 +318,13 @@ def run(
 
     # GEMM1
     _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
-        hidden_states, hidden_states_scale, sorted_tokens,
+        hidden_states_gathered, hidden_states_scale_gathered, sorted_tokens_gemm1,
         H, I,
         b_expert_id, b_token_offset, b_num_tokens,
         gemm1_weights, gemm1_weights_scale,
         workspace,
-        hidden_states.stride(0), hidden_states.stride(1),
-        hidden_states_scale.stride(0), hidden_states_scale.stride(1),
+        hidden_states_gathered.stride(0), hidden_states_gathered.stride(1),
+        hidden_states_scale_gathered.stride(0), hidden_states_scale_gathered.stride(1),
         gemm1_weights.stride(0), gemm1_weights.stride(1), gemm1_weights.stride(2),
         gemm1_weights_scale.stride(0), gemm1_weights_scale.stride(1), gemm1_weights_scale.stride(2),
         NUM_H_BLOCKS=NUM_H_BLOCKS,
