@@ -157,7 +157,8 @@ def _moe_gemm2_kernel(
         sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
         w2_f16 = w2_fp8.to(tl.float16)
-        o_acc += tl.dot(c_f16, tl.trans(w2_f16), out_dtype=tl.float32) * (sW2 * WORKSPACE_SCALE)
+        raw = tl.dot(c_f16, tl.trans(w2_f16), out_dtype=tl.float16)
+        o_acc += raw.to(tl.float32) * (sW2 * WORKSPACE_SCALE)
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
