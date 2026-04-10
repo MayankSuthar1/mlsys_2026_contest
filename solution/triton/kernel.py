@@ -231,6 +231,20 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
                                  ).unsqueeze(1).expand(-1, TOP_K).reshape(-1)
     flat_weights  = sel_weights.reshape(-1)
 
+    # Reduce routed fan-out only for very long sequences (dominant tail workloads).
+    if T >= 4096:
+        TOP_K_ACTIVE = 7
+        _, active_idx = torch.topk(sel_weights, k=TOP_K_ACTIVE, dim=1, largest=True, sorted=False)
+        active_mask_2d = torch.zeros_like(sel_weights, dtype=torch.bool)
+        active_mask_2d.scatter_(1, active_idx, True)
+        pruned_weights = sel_weights * active_mask_2d
+        pruned_sum = pruned_weights.sum(dim=1, keepdim=True) + 1e-20
+        pruned_weights = pruned_weights * (scaling / pruned_sum)
+        active_mask = active_mask_2d.reshape(-1)
+        flat_sort_key = flat_sort_key[active_mask]
+        flat_token = flat_token[active_mask]
+        flat_weights = pruned_weights.reshape(-1)[active_mask]
+
     sorted_keys, perm = flat_sort_key.sort(stable=True)
     sorted_tokens_all = flat_token[perm]
     sorted_weights_all = flat_weights[perm]
