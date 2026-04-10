@@ -221,7 +221,7 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
                                  ).unsqueeze(1).expand(-1, TOP_K).reshape(-1)
     flat_weights  = sel_weights.reshape(-1)
 
-    sorted_keys, perm = flat_sort_key.sort(stable=False)
+    sorted_keys, perm = flat_sort_key.sort(stable=True)
     sorted_tokens_all = flat_token[perm]
     sorted_weights_all = flat_weights[perm]
 
