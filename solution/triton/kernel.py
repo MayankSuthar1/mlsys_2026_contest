@@ -273,7 +273,8 @@ def run(
     scaling = float(routed_scaling_factor)
     local_start = int(local_expert_offset)
 
-    BLOCK_M = 32
+    BLOCK_M1 = 32
+    BLOCK_M2 = 64
 
     # ---- Compiled routing + dispatch (includes block_offsets cumsum) ----
     sorted_tokens_all, sorted_weights_all, expert_counts, expert_offsets, block_offsets = \
@@ -283,23 +284,41 @@ def run(
         )
 
     # ---- Single sync point ----
-    total_blocks = int(block_offsets[-1].item())
+    total_blocks1 = int(block_offsets[-1].item())
 
-    if total_blocks == 0:
+    if total_blocks1 == 0:
         output.zero_()
         return
 
     total_routed = int(expert_offsets[-1])  # instant — already synced
 
-    # ---- Block map via Triton kernel (1 launch vs 8 PyTorch ops) ----
-    block_map_buf = torch.empty(3 * total_blocks, dtype=torch.int32, device=device)
-    b_expert_id    = block_map_buf[:total_blocks]
-    b_token_offset = block_map_buf[total_blocks:2*total_blocks]
-    b_num_tokens   = block_map_buf[2*total_blocks:]
-    _build_block_map_kernel[(total_blocks,)](
+    # Build a second block map for GEMM2 with a larger token tile.
+    blocks_per_expert2 = (expert_counts + (BLOCK_M2 - 1)) // BLOCK_M2
+    block_offsets2 = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
+    block_offsets2[1:] = torch.cumsum(blocks_per_expert2, dim=0)
+    total_blocks2 = int(block_offsets2[-1].item())
+
+    # ---- Block map for GEMM1 ----
+    block_map_buf1 = torch.empty(3 * total_blocks1, dtype=torch.int32, device=device)
+    b1_expert_id    = block_map_buf1[:total_blocks1]
+    b1_token_offset = block_map_buf1[total_blocks1:2*total_blocks1]
+    b1_num_tokens   = block_map_buf1[2*total_blocks1:]
+    _build_block_map_kernel[(total_blocks1,)](
         block_offsets, expert_offsets, expert_counts,
-        b_expert_id, b_token_offset, b_num_tokens,
-        BLOCK_M=BLOCK_M, E_LOCAL=E_local,
+        b1_expert_id, b1_token_offset, b1_num_tokens,
+        BLOCK_M=BLOCK_M1, E_LOCAL=E_local,
+        num_warps=1,
+    )
+
+    # ---- Block map for GEMM2 ----
+    block_map_buf2 = torch.empty(3 * total_blocks2, dtype=torch.int32, device=device)
+    b2_expert_id    = block_map_buf2[:total_blocks2]
+    b2_token_offset = block_map_buf2[total_blocks2:2*total_blocks2]
+    b2_num_tokens   = block_map_buf2[2*total_blocks2:]
+    _build_block_map_kernel[(total_blocks2,)](
+        block_offsets2, expert_offsets, expert_counts,
+        b2_expert_id, b2_token_offset, b2_num_tokens,
+        BLOCK_M=BLOCK_M2, E_LOCAL=E_local,
         num_warps=1,
     )
 
@@ -311,10 +330,10 @@ def run(
     out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
 
     # GEMM1
-    _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
+    _moe_gemm1_swiglu_kernel[(total_blocks1, NUM_I_BLOCKS)](
         hidden_states, hidden_states_scale, sorted_tokens,
         H, I,
-        b_expert_id, b_token_offset, b_num_tokens,
+        b1_expert_id, b1_token_offset, b1_num_tokens,
         gemm1_weights, gemm1_weights_scale,
         workspace,
         hidden_states.stride(0), hidden_states.stride(1),
@@ -323,7 +342,7 @@ def run(
         gemm1_weights_scale.stride(0), gemm1_weights_scale.stride(1), gemm1_weights_scale.stride(2),
         NUM_H_BLOCKS=NUM_H_BLOCKS,
         NUM_I_BLOCKS=NUM_I_BLOCKS,
-        BLOCK_M=BLOCK_M,
+        BLOCK_M=BLOCK_M1,
         BLOCK_K=128,
         BLOCK_I=128,
         num_warps=4,
@@ -331,19 +350,19 @@ def run(
     )
 
     # GEMM2
-    _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks,)](
+    _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks2,)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
         sorted_weights_all, sorted_tokens,
-        b_expert_id, b_token_offset, b_num_tokens,
+        b2_expert_id, b2_token_offset, b2_num_tokens,
         out_accum,
-        total_blocks,
+        total_blocks2,
         gemm2_weights.stride(0),       gemm2_weights.stride(1),    gemm2_weights.stride(2),
         gemm2_weights_scale.stride(0), gemm2_weights_scale.stride(1), gemm2_weights_scale.stride(2),
         out_accum.stride(0), out_accum.stride(1),
         NUM_I_BLOCKS=NUM_I_BLOCKS,
         NUM_H_BLOCKS=NUM_H_BLOCKS,
-        BLOCK_M=BLOCK_M,
+        BLOCK_M=BLOCK_M2,
         BLOCK_I=128,
         BLOCK_N=128,
         GROUP_BLOCKS=4,
