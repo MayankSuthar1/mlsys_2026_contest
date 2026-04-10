@@ -94,15 +94,9 @@ def _moe_gemm1_swiglu_kernel(
 @triton.autotune(
     configs=[
         triton.Config({'GROUP_BLOCKS': 1}, num_warps=4, num_stages=2),
-        triton.Config({'GROUP_BLOCKS': 1}, num_warps=8, num_stages=2),
         triton.Config({'GROUP_BLOCKS': 1}, num_warps=8, num_stages=3),
-        triton.Config({'GROUP_BLOCKS': 2}, num_warps=4, num_stages=2),
-        triton.Config({'GROUP_BLOCKS': 2}, num_warps=8, num_stages=2),
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=4, num_stages=2),
-        triton.Config({'GROUP_BLOCKS': 4}, num_warps=8, num_stages=2),
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=8, num_stages=3),
-        triton.Config({'GROUP_BLOCKS': 8}, num_warps=8, num_stages=2),
-        triton.Config({'GROUP_BLOCKS': 8}, num_warps=8, num_stages=3),
     ],
     key=['TOTAL_BLOCKS'],
     reset_to_zero=['out_ptr'],
