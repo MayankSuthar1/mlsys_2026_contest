@@ -20,21 +20,12 @@ import triton.language as tl
 # Kernel 1: GEMM1 + SwiGLU  ->  FP32 workspace
 # ---------------------------------------------------------------------------
 
-@triton.autotune(
-    configs=[
-        triton.Config({}, num_warps=2, num_stages=2),
-        triton.Config({}, num_warps=4, num_stages=2),
-        triton.Config({}, num_warps=4, num_stages=3),
-        triton.Config({}, num_warps=8, num_stages=3),
-    ],
-    key=['TOTAL_BLOCKS'],
-)
 @triton.jit
 def _moe_gemm1_swiglu_kernel(
     hidden_states_ptr,
     hidden_states_scale_ptr,
     sorted_tokens_ptr,
-    H, I, TOTAL_BLOCKS,
+    H, I,
     b_expert_id_ptr, b_token_offset_ptr, b_num_tokens_ptr,
     w13_ptr, s13_ptr,
     workspace_ptr,
@@ -332,7 +323,7 @@ def run(
     # GEMM1
     _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
         hidden_states, hidden_states_scale, sorted_tokens,
-        H, I, total_blocks,
+        H, I,
         b_expert_id, b_token_offset, b_num_tokens,
         gemm1_weights, gemm1_weights_scale,
         workspace,
@@ -345,6 +336,8 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_K=128,
         BLOCK_I=128,
+        num_warps=4,
+        num_stages=3,
     )
 
     # GEMM2
