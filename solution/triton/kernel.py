@@ -134,7 +134,7 @@ def _moe_gemm2_kernel(
 
     o_acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
 
-    for ib in range(NUM_I_BLOCKS):
+    for ib in tl.static_range(NUM_I_BLOCKS):
         offs_i = ib * BLOCK_I + tl.arange(0, BLOCK_I)
 
         c_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i[None, :]
