@@ -4,9 +4,9 @@ FP8 Block-Scale MoE Kernel -- Optimized for NVIDIA B200 (Blackwell).
 Key optimizations:
   1. 2D GEMM1 grid (total_blocks, NUM_I_BLOCKS): block_id fastest for weight L2 reuse
   2. Pre-gathered hidden states + scales for coalesced A loads in GEMM1
-  3. GEMM2 grid (NUM_H_BLOCKS, total_blocks): nb varies fastest for workspace L2 reuse
+  3. Grouped GEMM2 launch order for better expert-weight L2 reuse
   4. FP32 workspace for numerical correctness
-  5. Tuned num_warps=8 / num_stages for B200
+  5. Tuned num_warps / num_stages for B200
   6. GPU-side block map construction (searchsorted, no CPU sync)
   7. Compiled routing+dispatch in CUDA graph (reduce-overhead)
 """
@@ -88,7 +88,7 @@ def _moe_gemm1_swiglu_kernel(
 
 # ---------------------------------------------------------------------------
 # Kernel 2: GEMM2  (FP32 workspace @ FP8 W2 -> FP32 atomic_add -> BF16)
-# Grid: (NUM_H_BLOCKS, total_blocks) -- nb varies fastest
+# Grid: grouped 1D launch over (total_blocks, NUM_H_BLOCKS)
 # ---------------------------------------------------------------------------
 
 @triton.jit
@@ -99,6 +99,7 @@ def _moe_gemm2_kernel(
     w_tok_ptr, sorted_tokens_ptr,
     b_expert_id_ptr, b_token_offset_ptr, b_num_tokens_ptr,
     out_ptr,
+    TOTAL_BLOCKS,
     stride_w2_e, stride_w2_h, stride_w2_i,
     stride_s2_e, stride_s2_hb, stride_s2_ib,
     stride_out_t, stride_out_h,
@@ -107,9 +108,18 @@ def _moe_gemm2_kernel(
     BLOCK_M:       tl.constexpr,
     BLOCK_I:       tl.constexpr,
     BLOCK_N:       tl.constexpr,
+    GROUP_BLOCKS:  tl.constexpr,
 ):
-    nb       = tl.program_id(0)
-    block_id = tl.program_id(1)
+    pid = tl.program_id(0)
+    num_pid_n = NUM_H_BLOCKS
+    num_pid_m = TOTAL_BLOCKS
+    num_pid_in_group = GROUP_BLOCKS * num_pid_n
+    group_id = pid // num_pid_in_group
+    first_pid_m = group_id * GROUP_BLOCKS
+    group_size_m = min(num_pid_m - first_pid_m, GROUP_BLOCKS)
+    pid_in_group = pid % num_pid_in_group
+    block_id = first_pid_m + (pid_in_group % group_size_m)
+    nb = pid_in_group // group_size_m
 
     expert_id    = tl.load(b_expert_id_ptr    + block_id)
     token_offset = tl.load(b_token_offset_ptr + block_id)
@@ -321,12 +331,13 @@ def run(
     )
 
     # GEMM2
-    _moe_gemm2_kernel[(NUM_H_BLOCKS, total_blocks)](
+    _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks,)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
         sorted_weights_all, sorted_tokens,
         b_expert_id, b_token_offset, b_num_tokens,
         out_accum,
+        total_blocks,
         gemm2_weights.stride(0),       gemm2_weights.stride(1),    gemm2_weights.stride(2),
         gemm2_weights_scale.stride(0), gemm2_weights_scale.stride(1), gemm2_weights_scale.stride(2),
         out_accum.stride(0), out_accum.stride(1),
@@ -335,6 +346,7 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
         BLOCK_N=128,
+        GROUP_BLOCKS=8,
         num_warps=4,
         num_stages=2,
     )
