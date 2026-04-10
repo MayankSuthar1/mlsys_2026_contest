@@ -105,15 +105,13 @@ def _moe_gemm2_kernel(
     stride_out_t, stride_out_h,
     NUM_I_BLOCKS:  tl.constexpr,
     NUM_H_BLOCKS:  tl.constexpr,
-    NUM_N_BLOCKS:  tl.constexpr,
     BLOCK_M:       tl.constexpr,
     BLOCK_I:       tl.constexpr,
     BLOCK_N:       tl.constexpr,
     GROUP_BLOCKS:  tl.constexpr,
-    SCALE_N_FACTOR: tl.constexpr,
 ):
     pid = tl.program_id(0)
-    num_pid_n = NUM_N_BLOCKS
+    num_pid_n = NUM_H_BLOCKS
     num_pid_m = TOTAL_BLOCKS
     num_pid_in_group = GROUP_BLOCKS * num_pid_n
     group_id = pid // num_pid_in_group
@@ -144,8 +142,7 @@ def _moe_gemm2_kernel(
 
         w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
         w2_fp8  = tl.load(w2_ptrs)
-        scale_nb = nb // SCALE_N_FACTOR
-        sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + scale_nb * stride_s2_hb + ib * stride_s2_ib)
+        sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
         # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
         w2_f32 = w2_fp8.to(tl.float32)
@@ -269,7 +266,6 @@ def run(
     N_GROUP = 8
     TOPK_GROUP = 4
     NUM_H_BLOCKS = H // 128
-    NUM_N_BLOCKS = H // 64
     NUM_I_BLOCKS = I // 128
 
     T = int(routing_logits.shape[0])
@@ -335,7 +331,7 @@ def run(
     )
 
     # GEMM2
-    _moe_gemm2_kernel[(NUM_N_BLOCKS * total_blocks,)](
+    _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks,)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
         sorted_weights_all, sorted_tokens,
@@ -347,12 +343,10 @@ def run(
         out_accum.stride(0), out_accum.stride(1),
         NUM_I_BLOCKS=NUM_I_BLOCKS,
         NUM_H_BLOCKS=NUM_H_BLOCKS,
-        NUM_N_BLOCKS=NUM_N_BLOCKS,
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
-        BLOCK_N=64,
+        BLOCK_N=128,
         GROUP_BLOCKS=4,
-        SCALE_N_FACTOR=2,
         num_warps=8,
         num_stages=3,
     )
