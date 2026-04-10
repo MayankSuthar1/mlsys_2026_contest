@@ -198,7 +198,7 @@ def _build_block_map_kernel(
 # ---------------------------------------------------------------------------
 
 def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
-                          TOPK_GROUP, TOP_K, scaling, local_start, E_local):
+                          TOPK_GROUP, TOP_K, scaling, local_start, E_local, BLOCK_M):
     """Routing + sort-based dispatch in one compiled region."""
     logits = routing_logits.to(torch.float32)
     s      = torch.sigmoid(logits)
@@ -241,7 +241,7 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
     expert_offsets[1:] = torch.cumsum(expert_counts, dim=0)
 
     # Also compute block map cumsum here to reduce post-sync work
-    blocks_per_expert = (expert_counts + 31) // 32  # BLOCK_M=32 hardcoded
+    blocks_per_expert = (expert_counts + (BLOCK_M - 1)) // BLOCK_M
     block_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
     block_offsets[1:] = torch.cumsum(blocks_per_expert, dim=0)
 
@@ -283,13 +283,13 @@ def run(
     scaling = float(routed_scaling_factor)
     local_start = int(local_expert_offset)
 
-    BLOCK_M = 32
+    BLOCK_M = 64
 
     # ---- Compiled routing + dispatch (includes block_offsets cumsum) ----
     sorted_tokens_all, sorted_weights_all, expert_counts, expert_offsets, block_offsets = \
         _compiled_routing_dispatch(
             routing_logits, routing_bias, E_global, N_GROUP, TOPK_GROUP,
-            TOP_K, scaling, local_start, E_local
+            TOP_K, scaling, local_start, E_local, BLOCK_M
         )
 
     # ---- Single sync point ----
