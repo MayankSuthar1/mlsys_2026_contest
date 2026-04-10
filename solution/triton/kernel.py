@@ -144,8 +144,9 @@ def _moe_gemm2_kernel(
         w2_fp8  = tl.load(w2_ptrs)
         sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
-        # Keep W2 in FP8 all the way through the matmul path.
-        o_acc += tl.dot(c_f32, tl.trans(w2_fp8), out_dtype=tl.float32) * sW2
+        # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
+        w2_f32 = w2_fp8.to(tl.float32)
+        o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
