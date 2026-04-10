@@ -22,14 +22,15 @@ import triton.language as tl
 
 @triton.jit
 def _moe_gemm1_swiglu_kernel(
-    gathered_hs_ptr,
-    gathered_hss_ptr,
+    hidden_states_ptr,
+    hidden_states_scale_ptr,
+    sorted_tokens_ptr,
     H, I,
     b_expert_id_ptr, b_token_offset_ptr, b_num_tokens_ptr,
     w13_ptr, s13_ptr,
     workspace_ptr,
-    stride_ghs_t, stride_ghs_h,
-    stride_ghss_hb, stride_ghss_t,
+    stride_hs_t, stride_hs_h,
+    stride_hss_hb, stride_hss_t,
     stride_w13_e, stride_w13_o, stride_w13_h,
     stride_s13_e, stride_s13_ob, stride_s13_hb,
     NUM_H_BLOCKS: tl.constexpr,
@@ -47,7 +48,7 @@ def _moe_gemm1_swiglu_kernel(
 
     offs_m = tl.arange(0, BLOCK_M)
     mask_m = offs_m < num_tokens
-    row_idx = token_offset + offs_m
+    tok_idx = tl.load(sorted_tokens_ptr + token_offset + offs_m, mask=mask_m, other=0)
 
     offs_i    = ib * BLOCK_I + tl.arange(0, BLOCK_I)
     offs_i_up = I + offs_i
@@ -58,10 +59,10 @@ def _moe_gemm1_swiglu_kernel(
     for kb in range(NUM_H_BLOCKS):
         offs_k = kb * BLOCK_K + tl.arange(0, BLOCK_K)
 
-        a_ptrs = gathered_hs_ptr + row_idx[:, None] * stride_ghs_t + offs_k[None, :] * stride_ghs_h
+        a_ptrs = hidden_states_ptr + tok_idx[:, None] * stride_hs_t + offs_k[None, :] * stride_hs_h
         a_fp8 = tl.load(a_ptrs, mask=mask_m[:, None], other=0.0)
 
-        sA = tl.load(gathered_hss_ptr + kb * stride_ghss_hb + row_idx * stride_ghss_t,
+        sA = tl.load(hidden_states_scale_ptr + kb * stride_hss_hb + tok_idx * stride_hss_t,
                      mask=mask_m, other=0.0)
 
         w1_ptrs = w13_ptr + expert_id * stride_w13_e + offs_i[:, None] * stride_w13_o + offs_k[None, :] * stride_w13_h
@@ -133,8 +134,7 @@ def _moe_gemm2_kernel(
         w2_fp8  = tl.load(w2_ptrs)
         sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
-        # ITER6: keep w2 as FP8 for dot, apply block scale to result
-        # (avoids element-wise scale of 128x128 weight tile before dot)
+        # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
         w2_f32 = w2_fp8.to(tl.float32)
         o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2
 
@@ -221,7 +221,7 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
     expert_offsets[1:] = torch.cumsum(expert_counts, dim=0)
 
     # Also compute block map cumsum here to reduce post-sync work
-    blocks_per_expert = (expert_counts + 63) // 64  # BLOCK_M=64 hardcoded
+    blocks_per_expert = (expert_counts + 31) // 32  # BLOCK_M=32 hardcoded
     block_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
     block_offsets[1:] = torch.cumsum(blocks_per_expert, dim=0)
 
@@ -263,7 +263,7 @@ def run(
     scaling = float(routed_scaling_factor)
     local_start = int(local_expert_offset)
 
-    BLOCK_M = 64
+    BLOCK_M = 32
 
     # ---- Compiled routing + dispatch (includes block_offsets cumsum) ----
     sorted_tokens_all, sorted_weights_all, expert_counts, expert_offsets, block_offsets = \
@@ -293,10 +293,8 @@ def run(
         num_warps=1,
     )
 
-    # ---- Gather hidden states ----
-    sorted_tokens_i64 = sorted_tokens_all[:total_routed].long()
-    gathered_hs  = hidden_states[sorted_tokens_i64]
-    gathered_hss = hidden_states_scale[:, sorted_tokens_i64]
+    # ---- Routed token ids used by GEMM kernels ----
+    sorted_tokens = sorted_tokens_all[:total_routed]
 
     # Allocate workspace
     workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
@@ -304,13 +302,13 @@ def run(
 
     # GEMM1
     _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
-        gathered_hs, gathered_hss,
+        hidden_states, hidden_states_scale, sorted_tokens,
         H, I,
         b_expert_id, b_token_offset, b_num_tokens,
         gemm1_weights, gemm1_weights_scale,
         workspace,
-        gathered_hs.stride(0), gathered_hs.stride(1),
-        gathered_hss.stride(0), gathered_hss.stride(1),
+        hidden_states.stride(0), hidden_states.stride(1),
+        hidden_states_scale.stride(0), hidden_states_scale.stride(1),
         gemm1_weights.stride(0), gemm1_weights.stride(1), gemm1_weights.stride(2),
         gemm1_weights_scale.stride(0), gemm1_weights_scale.stride(1), gemm1_weights_scale.stride(2),
         NUM_H_BLOCKS=NUM_H_BLOCKS,
@@ -318,15 +316,15 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_K=128,
         BLOCK_I=128,
-        num_warps=8,
-        num_stages=4,
+        num_warps=4,
+        num_stages=3,
     )
 
     # GEMM2
     _moe_gemm2_kernel[(NUM_H_BLOCKS, total_blocks)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
-        sorted_weights_all, sorted_tokens_all,
+        sorted_weights_all, sorted_tokens,
         b_expert_id, b_token_offset, b_num_tokens,
         out_accum,
         gemm2_weights.stride(0),       gemm2_weights.stride(1),    gemm2_weights.stride(2),
@@ -337,8 +335,8 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
         BLOCK_N=128,
-        num_warps=8,
-        num_stages=3,
+        num_warps=4,
+        num_stages=2,
     )
 
     output.copy_(out_accum)
