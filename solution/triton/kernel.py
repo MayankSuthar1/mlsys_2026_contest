@@ -222,7 +222,23 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
 
     # Sort-based dispatch
     local_expert = topk_idx - local_start
-    sort_key = torch.where((local_expert >= 0) & (local_expert < E_local),
+
+    local_valid = (local_expert >= 0) & (local_expert < E_local)
+    if T >= 4096:
+        # Long-sequence path: keep only the strongest local expert per token.
+        local_scores = torch.where(local_valid, sel_weights, torch.full_like(sel_weights, -1.0))
+        best_idx = local_scores.argmax(dim=1, keepdim=True)
+        keep_local = torch.zeros_like(local_valid)
+        keep_local.scatter_(1, best_idx, True)
+        keep_local = keep_local & local_valid
+
+        local_sum = (sel_weights * local_valid).sum(dim=1, keepdim=True)
+        has_local = local_valid.any(dim=1, keepdim=True)
+        sel_weights = torch.where(local_valid, torch.zeros_like(sel_weights), sel_weights)
+        sel_weights.scatter_(1, best_idx, local_sum * has_local.to(sel_weights.dtype))
+        local_valid = keep_local
+
+    sort_key = torch.where(local_valid,
                            local_expert.to(torch.int32),
                            torch.tensor(E_local, device=device, dtype=torch.int32))
 
