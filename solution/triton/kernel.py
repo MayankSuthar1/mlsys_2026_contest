@@ -175,13 +175,11 @@ def _build_block_map_kernel(
     E_LOCAL: tl.constexpr,
 ):
     block_id = tl.program_id(0)
-    # Linear scan to find expert (E_LOCAL=32, fast enough)
-    expert_id = tl.load(block_offsets_ptr + E_LOCAL)  # init to total_blocks as sentinel
+    # Count how many expert end-offsets are <= block_id (branchless expert lookup).
+    expert_id = tl.zeros((), dtype=tl.int32)
     for e in tl.static_range(E_LOCAL):
-        start = tl.load(block_offsets_ptr + e)
         end = tl.load(block_offsets_ptr + e + 1)
-        if block_id >= start and block_id < end:
-            expert_id = e
+        expert_id += (block_id >= end).to(tl.int32)
     block_within = block_id - tl.load(block_offsets_ptr + expert_id)
     token_offset = tl.load(expert_offsets_ptr + expert_id) + block_within * BLOCK_M
     count = tl.load(expert_counts_ptr + expert_id)
