@@ -199,11 +199,12 @@ def _build_block_map_kernel(
 
 def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
                           TOPK_GROUP, TOP_K, scaling, local_start, E_local):
-    """Routing only in compiled region; local dispatch built outside."""
+    """Routing + sort-based dispatch in one compiled region."""
     logits = routing_logits.to(torch.float32)
     s      = torch.sigmoid(logits)
     s_wb   = s + routing_bias.to(torch.float32).reshape(-1)
     T = logits.shape[0]
+    device = logits.device
 
     s_grouped    = s_wb.view(T, N_GROUP, E_global // N_GROUP)
     top2_vals, _ = torch.topk(s_grouped, k=2, dim=2, largest=True, sorted=False)
@@ -219,8 +220,32 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
     sel_sum = sel_s.sum(dim=1, keepdim=True) + 1e-20
     sel_weights = sel_s * scaling / sel_sum
 
+    # Sort-based dispatch
     local_expert = topk_idx - local_start
-    return local_expert, sel_weights
+    sort_key = torch.where((local_expert >= 0) & (local_expert < E_local),
+                           local_expert.to(torch.int32),
+                           torch.tensor(E_local, device=device, dtype=torch.int32))
+
+    flat_sort_key = sort_key.reshape(-1)
+    flat_token    = torch.arange(T, device=device, dtype=torch.int32
+                                 ).unsqueeze(1).expand(-1, TOP_K).reshape(-1)
+    flat_weights  = sel_weights.reshape(-1)
+
+    sorted_keys, perm = flat_sort_key.sort(stable=True)
+    sorted_tokens_all = flat_token[perm]
+    sorted_weights_all = flat_weights[perm]
+
+    key_counts     = torch.bincount(sorted_keys, minlength=E_local + 1)
+    expert_counts  = key_counts[:E_local]
+    expert_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
+    expert_offsets[1:] = torch.cumsum(expert_counts, dim=0)
+
+    # Also compute block map cumsum here to reduce post-sync work
+    blocks_per_expert = (expert_counts + 31) // 32  # BLOCK_M=32 hardcoded
+    block_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
+    block_offsets[1:] = torch.cumsum(blocks_per_expert, dim=0)
+
+    return sorted_tokens_all, sorted_weights_all, expert_counts, expert_offsets, block_offsets
 
 _compiled_routing_dispatch = torch.compile(_routing_and_dispatch, mode="reduce-overhead")
 
@@ -260,31 +285,12 @@ def run(
 
     BLOCK_M = 32
 
-    # ---- Compiled routing ----
-    local_expert, sel_weights = \
+    # ---- Compiled routing + dispatch (includes block_offsets cumsum) ----
+    sorted_tokens_all, sorted_weights_all, expert_counts, expert_offsets, block_offsets = \
         _compiled_routing_dispatch(
             routing_logits, routing_bias, E_global, N_GROUP, TOPK_GROUP,
             TOP_K, scaling, local_start, E_local
         )
-
-    # ---- Local-only sort dispatch (outside compile to avoid dynamic-shape graph penalties) ----
-    local_mask = (local_expert >= 0) & (local_expert < E_local)
-    token_grid = torch.arange(T, device=device, dtype=torch.int32).unsqueeze(1).expand(-1, TOP_K)
-    local_expert_flat = local_expert[local_mask].to(torch.int32)
-    local_tokens_flat = token_grid[local_mask]
-    local_weights_flat = sel_weights[local_mask]
-
-    sorted_keys, perm = local_expert_flat.sort(stable=True)
-    sorted_tokens_all = local_tokens_flat[perm]
-    sorted_weights_all = local_weights_flat[perm]
-
-    expert_counts = torch.bincount(sorted_keys, minlength=E_local).to(torch.int32)
-    expert_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
-    expert_offsets[1:] = torch.cumsum(expert_counts, dim=0)
-
-    blocks_per_expert = (expert_counts + (BLOCK_M - 1)) // BLOCK_M
-    block_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
-    block_offsets[1:] = torch.cumsum(blocks_per_expert, dim=0)
 
     # ---- Single sync point ----
     total_blocks = int(block_offsets[-1].item())
