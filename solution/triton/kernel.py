@@ -151,7 +151,7 @@ def _moe_gemm2_kernel(
         c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0)
 
         w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
-        w2_fp8  = tl.load(w2_ptrs)
+        w2_fp8  = tl.load(w2_ptrs, cache_modifier=".cg")
         sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
         # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
