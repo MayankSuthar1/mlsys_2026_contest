@@ -144,28 +144,19 @@ def _moe_gemm2_kernel(
 
     o_acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
 
-    for ib2 in range(NUM_I_BLOCKS // 2):
-        ib0 = ib2 * 2
-        ib1 = ib0 + 1
-        offs_i0 = ib0 * BLOCK_I + tl.arange(0, BLOCK_I)
-        offs_i1 = offs_i0 + BLOCK_I
+    for ib in range(NUM_I_BLOCKS):
+        offs_i = ib * BLOCK_I + tl.arange(0, BLOCK_I)
 
-        c0_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i0[None, :]
-        c1_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i1[None, :]
-        c0_f32  = tl.load(c0_ptrs, mask=mask_m[:, None], other=0.0)
-        c1_f32  = tl.load(c1_ptrs, mask=mask_m[:, None], other=0.0)
+        c_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i[None, :]
+        c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0)
 
-        w0_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i0[None, :] * stride_w2_i
-        w1_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i1[None, :] * stride_w2_i
-        w0_fp8  = tl.load(w0_ptrs)
-        w1_fp8  = tl.load(w1_ptrs)
-        sW0     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib0 * stride_s2_ib)
-        sW1     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib1 * stride_s2_ib)
+        w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
+        w2_fp8  = tl.load(w2_ptrs)
+        sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
-        w0_f32 = w0_fp8.to(tl.float32)
-        w1_f32 = w1_fp8.to(tl.float32)
-        o_acc += tl.dot(c0_f32, tl.trans(w0_f32), out_dtype=tl.float32) * sW0
-        o_acc += tl.dot(c1_f32, tl.trans(w1_f32), out_dtype=tl.float32) * sW1
+        # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
+        w2_f32 = w2_fp8.to(tl.float32)
+        o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
