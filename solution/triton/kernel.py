@@ -38,7 +38,6 @@ def _moe_gemm1_swiglu_kernel(
     BLOCK_M: tl.constexpr,
     BLOCK_K: tl.constexpr,
     BLOCK_I: tl.constexpr,
-    WORKSPACE_INV_SCALE: tl.constexpr,
 ):
     block_id = tl.program_id(0)
     ib       = tl.program_id(1)
@@ -81,7 +80,7 @@ def _moe_gemm1_swiglu_kernel(
         u2 += raw2 * (sA[:, None] * sW3)
 
     silu_u2 = u2 / (1.0 + tl.exp(-u2))
-    c = (silu_u2 * u1) * WORKSPACE_INV_SCALE
+    c = silu_u2 * u1
 
     c_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i[None, :]
     tl.store(c_ptrs, c, mask=mask_m[:, None])
@@ -110,7 +109,6 @@ def _moe_gemm2_kernel(
     BLOCK_I:       tl.constexpr,
     BLOCK_N:       tl.constexpr,
     GROUP_BLOCKS:  tl.constexpr,
-    WORKSPACE_SCALE: tl.constexpr,
 ):
     pid = tl.program_id(0)
     num_pid_n = NUM_H_BLOCKS
@@ -140,7 +138,7 @@ def _moe_gemm2_kernel(
         offs_i = ib * BLOCK_I + tl.arange(0, BLOCK_I)
 
         c_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i[None, :]
-        c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0).to(tl.float32) * WORKSPACE_SCALE
+        c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0)
 
         w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
         w2_fp8  = tl.load(w2_ptrs)
@@ -152,7 +150,7 @@ def _moe_gemm2_kernel(
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
-    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None], sem="relaxed")
+    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None])
 
 
 # ---------------------------------------------------------------------------
@@ -309,8 +307,7 @@ def run(
     sorted_tokens = sorted_tokens_all[:total_routed]
 
     # Allocate workspace
-    WORKSPACE_SCALE = 64.0
-    workspace = torch.empty((total_routed, I), dtype=torch.float16, device=device)
+    workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
     out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
 
     # GEMM1
@@ -329,7 +326,6 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_K=128,
         BLOCK_I=128,
-        WORKSPACE_INV_SCALE=(1.0 / WORKSPACE_SCALE),
         num_warps=4,
         num_stages=3,
     )
@@ -351,7 +347,6 @@ def run(
         BLOCK_I=128,
         BLOCK_N=128,
         GROUP_BLOCKS=4,
-        WORKSPACE_SCALE=WORKSPACE_SCALE,
         num_warps=8,
         num_stages=3,
     )
