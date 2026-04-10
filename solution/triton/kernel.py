@@ -138,10 +138,10 @@ def _moe_gemm2_kernel(
         offs_i = ib * BLOCK_I + tl.arange(0, BLOCK_I)
 
         c_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i[None, :]
-        c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0)
+        c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0, cache_modifier=".cv")
 
         w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
-        w2_fp8  = tl.load(w2_ptrs)
+        w2_fp8  = tl.load(w2_ptrs, cache_modifier=".cg")
         sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
 
         # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
