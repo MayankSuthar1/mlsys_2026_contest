@@ -96,7 +96,7 @@ def _moe_gemm2_kernel(
     workspace_ptr,
     I,
     w2_ptr, s2_ptr,
-    w_tok_ptr,
+    w_tok_ptr, sorted_tokens_ptr,
     b_expert_id_ptr, b_token_offset_ptr, b_num_tokens_ptr,
     out_ptr,
     TOTAL_BLOCKS,
@@ -129,6 +129,7 @@ def _moe_gemm2_kernel(
     offs_n = nb * BLOCK_N + tl.arange(0, BLOCK_N)
     mask_m = offs_m < num_tokens
 
+    tok_idx = tl.load(sorted_tokens_ptr + token_offset + offs_m, mask=mask_m, other=0)
     weight  = tl.load(w_tok_ptr         + token_offset + offs_m, mask=mask_m, other=0.0)
 
     o_acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
@@ -148,9 +149,8 @@ def _moe_gemm2_kernel(
         o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2
 
     o_acc = o_acc * weight[:, None]
-    routed_row = token_offset + offs_m
-    out_ptrs = out_ptr + routed_row[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
-    tl.store(out_ptrs, o_acc, mask=mask_m[:, None])
+    out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
+    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None])
 
 
 # ---------------------------------------------------------------------------
@@ -308,7 +308,7 @@ def run(
 
     # Allocate workspace
     workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
-    routed_out = torch.empty((total_routed, H), dtype=torch.float32, device=device)
+    out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
 
     # GEMM1
     _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
@@ -334,13 +334,13 @@ def run(
     _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks,)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
-        sorted_weights_all,
+        sorted_weights_all, sorted_tokens,
         b_expert_id, b_token_offset, b_num_tokens,
-        routed_out,
+        out_accum,
         total_blocks,
         gemm2_weights.stride(0),       gemm2_weights.stride(1),    gemm2_weights.stride(2),
         gemm2_weights_scale.stride(0), gemm2_weights_scale.stride(1), gemm2_weights_scale.stride(2),
-        routed_out.stride(0), routed_out.stride(1),
+        out_accum.stride(0), out_accum.stride(1),
         NUM_I_BLOCKS=NUM_I_BLOCKS,
         NUM_H_BLOCKS=NUM_H_BLOCKS,
         BLOCK_M=BLOCK_M,
@@ -351,6 +351,4 @@ def run(
         num_stages=3,
     )
 
-    out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
-    out_accum.index_add_(0, sorted_tokens.to(torch.int64), routed_out)
     output.copy_(out_accum)
