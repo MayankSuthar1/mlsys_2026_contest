@@ -237,7 +237,7 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
 
     return sorted_tokens_all, sorted_weights_all, expert_counts, expert_offsets, block_offsets
 
-_compiled_routing_dispatch = torch.compile(_routing_and_dispatch, mode="reduce-overhead")
+_compiled_routing_dispatch = torch.compile(_routing_and_dispatch, mode="reduce-overhead", fullgraph=True)
 
 
 # ---------------------------------------------------------------------------
