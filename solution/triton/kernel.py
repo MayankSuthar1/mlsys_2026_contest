@@ -111,7 +111,7 @@ def _moe_gemm2_kernel(
     GROUP_BLOCKS:  tl.constexpr,
 ):
     pid = tl.program_id(0)
-    num_pid_n = NUM_H_BLOCKS
+    num_pid_n = tl.cdiv(NUM_H_BLOCKS * 128, BLOCK_N)
     num_pid_m = TOTAL_BLOCKS
     num_pid_in_group = GROUP_BLOCKS * num_pid_n
     group_id = pid // num_pid_in_group
@@ -126,13 +126,20 @@ def _moe_gemm2_kernel(
     num_tokens   = tl.load(b_num_tokens_ptr   + block_id)
 
     offs_m = tl.arange(0, BLOCK_M)
-    offs_n = nb * BLOCK_N + tl.arange(0, BLOCK_N)
+    offs_n0 = nb * BLOCK_N + tl.arange(0, 128)
+    offs_n1 = offs_n0 + 128
+    offs_n2 = offs_n0 + 256
+    mask_n0 = offs_n0 < (NUM_H_BLOCKS * 128)
+    mask_n1 = offs_n1 < (NUM_H_BLOCKS * 128)
+    mask_n2 = offs_n2 < (NUM_H_BLOCKS * 128)
     mask_m = offs_m < num_tokens
 
     tok_idx = tl.load(sorted_tokens_ptr + token_offset + offs_m, mask=mask_m, other=0)
     weight  = tl.load(w_tok_ptr         + token_offset + offs_m, mask=mask_m, other=0.0)
 
-    o_acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+    o_acc0 = tl.zeros((BLOCK_M, 128), dtype=tl.float32)
+    o_acc1 = tl.zeros((BLOCK_M, 128), dtype=tl.float32)
+    o_acc2 = tl.zeros((BLOCK_M, 128), dtype=tl.float32)
 
     for ib in range(NUM_I_BLOCKS):
         offs_i = ib * BLOCK_I + tl.arange(0, BLOCK_I)
@@ -140,17 +147,40 @@ def _moe_gemm2_kernel(
         c_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i[None, :]
         c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0)
 
-        w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
-        w2_fp8  = tl.load(w2_ptrs)
-        sW2     = tl.load(s2_ptr + expert_id * stride_s2_e + nb * stride_s2_hb + ib * stride_s2_ib)
+        w2_ptrs0 = w2_ptr + expert_id * stride_w2_e + offs_n0[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
+        w2_ptrs1 = w2_ptr + expert_id * stride_w2_e + offs_n1[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
+        w2_ptrs2 = w2_ptr + expert_id * stride_w2_e + offs_n2[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
+        w2_fp8_0 = tl.load(w2_ptrs0, mask=mask_n0[:, None], other=0.0)
+        w2_fp8_1 = tl.load(w2_ptrs1, mask=mask_n1[:, None], other=0.0)
+        w2_fp8_2 = tl.load(w2_ptrs2, mask=mask_n2[:, None], other=0.0)
+
+        hb0 = nb * 3
+        hb1 = hb0 + 1
+        hb2 = hb0 + 2
+        mask_hb0 = hb0 < NUM_H_BLOCKS
+        mask_hb1 = hb1 < NUM_H_BLOCKS
+        mask_hb2 = hb2 < NUM_H_BLOCKS
+        sW2_0 = tl.load(s2_ptr + expert_id * stride_s2_e + hb0 * stride_s2_hb + ib * stride_s2_ib, mask=mask_hb0, other=0.0)
+        sW2_1 = tl.load(s2_ptr + expert_id * stride_s2_e + hb1 * stride_s2_hb + ib * stride_s2_ib, mask=mask_hb1, other=0.0)
+        sW2_2 = tl.load(s2_ptr + expert_id * stride_s2_e + hb2 * stride_s2_hb + ib * stride_s2_ib, mask=mask_hb2, other=0.0)
 
         # Keep W2 as FP8 for load bandwidth, then scale after the dot product.
-        w2_f32 = w2_fp8.to(tl.float32)
-        o_acc += tl.dot(c_f32, tl.trans(w2_f32), out_dtype=tl.float32) * sW2
+        w2_f32_0 = w2_fp8_0.to(tl.float32)
+        w2_f32_1 = w2_fp8_1.to(tl.float32)
+        w2_f32_2 = w2_fp8_2.to(tl.float32)
+        o_acc0 += tl.dot(c_f32, tl.trans(w2_f32_0), out_dtype=tl.float32) * sW2_0
+        o_acc1 += tl.dot(c_f32, tl.trans(w2_f32_1), out_dtype=tl.float32) * sW2_1
+        o_acc2 += tl.dot(c_f32, tl.trans(w2_f32_2), out_dtype=tl.float32) * sW2_2
 
-    o_acc = o_acc * weight[:, None]
-    out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
-    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None])
+    o_acc0 = o_acc0 * weight[:, None]
+    o_acc1 = o_acc1 * weight[:, None]
+    o_acc2 = o_acc2 * weight[:, None]
+    out_ptrs0 = out_ptr + tok_idx[:, None] * stride_out_t + offs_n0[None, :] * stride_out_h
+    out_ptrs1 = out_ptr + tok_idx[:, None] * stride_out_t + offs_n1[None, :] * stride_out_h
+    out_ptrs2 = out_ptr + tok_idx[:, None] * stride_out_t + offs_n2[None, :] * stride_out_h
+    tl.atomic_add(out_ptrs0, o_acc0, mask=mask_m[:, None] & mask_n0[None, :])
+    tl.atomic_add(out_ptrs1, o_acc1, mask=mask_m[:, None] & mask_n1[None, :])
+    tl.atomic_add(out_ptrs2, o_acc2, mask=mask_m[:, None] & mask_n2[None, :])
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +339,7 @@ def run(
     # Allocate workspace
     workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
     out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
+    NUM_N_BLOCKS = (H + 384 - 1) // 384
 
     # GEMM1
     _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
@@ -331,7 +362,7 @@ def run(
     )
 
     # GEMM2
-    _moe_gemm2_kernel[(NUM_H_BLOCKS * total_blocks,)](
+    _moe_gemm2_kernel[(NUM_N_BLOCKS * total_blocks,)](
         workspace, I,
         gemm2_weights, gemm2_weights_scale,
         sorted_weights_all, sorted_tokens,
@@ -345,7 +376,7 @@ def run(
         NUM_H_BLOCKS=NUM_H_BLOCKS,
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
-        BLOCK_N=128,
+        BLOCK_N=384,
         GROUP_BLOCKS=4,
         num_warps=8,
         num_stages=3,
