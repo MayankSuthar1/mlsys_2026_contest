@@ -160,7 +160,7 @@ def _moe_gemm2_kernel(
 
     o_acc = o_acc * weight[:, None]
     out_ptrs = out_ptr + tok_idx[:, None] * stride_out_t + offs_n[None, :] * stride_out_h
-    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None])
+    tl.atomic_add(out_ptrs, o_acc, mask=mask_m[:, None], sem="relaxed")
 
 
 # ---------------------------------------------------------------------------
