@@ -348,7 +348,7 @@ def run(
         BLOCK_N=128,
         GROUP_BLOCKS=4,
         num_warps=8,
-        num_stages=2,
+        num_stages=3,
     )
 
     output.copy_(out_accum)
