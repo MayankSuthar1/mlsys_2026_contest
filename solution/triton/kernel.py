@@ -210,23 +210,21 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
     sel_sum = sel_s.sum(dim=1, keepdim=True) + 1e-20
     sel_weights = sel_s * scaling / sel_sum
 
-    # Sort-based dispatch
-    local_expert = topk_idx - local_start
-    sort_key = torch.where((local_expert >= 0) & (local_expert < E_local),
-                           local_expert.to(torch.int32),
-                           torch.tensor(E_local, device=device, dtype=torch.int32))
+    # Sort-based dispatch (local experts only).
+    local_expert = topk_idx - local_start  # [T, TOP_K]
+    local_mask = (local_expert >= 0) & (local_expert < E_local)
 
-    flat_sort_key = sort_key.reshape(-1)
-    flat_token    = torch.arange(T, device=device, dtype=torch.int32
-                                 ).unsqueeze(1).expand(-1, TOP_K).reshape(-1)
-    flat_weights  = sel_weights.reshape(-1)
+    token_grid = torch.arange(T, device=device, dtype=torch.int32
+                              ).unsqueeze(1).expand(-1, TOP_K)
+    local_expert_flat = local_expert[local_mask].to(torch.int32)
+    local_tokens_flat = token_grid[local_mask]
+    local_weights_flat = sel_weights[local_mask]
 
-    sorted_keys, perm = flat_sort_key.sort(stable=True)
-    sorted_tokens_all = flat_token[perm]
-    sorted_weights_all = flat_weights[perm]
+    sorted_keys, perm = local_expert_flat.sort(stable=True)
+    sorted_tokens_all = local_tokens_flat[perm]
+    sorted_weights_all = local_weights_flat[perm]
 
-    key_counts     = torch.bincount(sorted_keys, minlength=E_local + 1)
-    expert_counts  = key_counts[:E_local]
+    expert_counts = torch.bincount(sorted_keys, minlength=E_local).to(torch.int32)
     expert_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
     expert_offsets[1:] = torch.cumsum(expert_counts, dim=0)
 
