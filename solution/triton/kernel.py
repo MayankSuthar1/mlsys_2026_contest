@@ -318,7 +318,7 @@ def run(
 
     # Allocate workspace
     workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
-    out_accum = torch.zeros((T, H), dtype=torch.float16, device=device)
+    out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
 
     # GEMM1
     _moe_gemm1_swiglu_kernel[(total_blocks, NUM_I_BLOCKS)](
@@ -358,4 +358,4 @@ def run(
         BLOCK_N=128,
     )
 
-    output.copy_(out_accum.to(torch.bfloat16))
+    output.copy_(out_accum)
