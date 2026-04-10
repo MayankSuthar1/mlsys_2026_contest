@@ -222,23 +222,7 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
 
     # Sort-based dispatch
     local_expert = topk_idx - local_start
-    local_valid = (local_expert >= 0) & (local_expert < E_local)
-    if T >= 4096:
-        local_weights = torch.where(local_valid, sel_weights, torch.zeros_like(sel_weights))
-        best_vals, best_idx = local_weights.max(dim=1, keepdim=True)
-        keep_best = torch.zeros_like(local_valid)
-        keep_best.scatter_(1, best_idx, True)
-        others = local_weights.masked_fill(keep_best, 0.0)
-        other_max, _ = others.max(dim=1, keepdim=True)
-        collapse_mask = local_valid.sum(dim=1, keepdim=True) > 1
-        collapse_mask = collapse_mask & (other_max <= (best_vals * 0.10))
-
-        if collapse_mask.any():
-            local_sum = local_weights.sum(dim=1, keepdim=True)
-            local_valid = torch.where(collapse_mask, keep_best & local_valid, local_valid)
-            sel_weights = torch.where(collapse_mask, torch.where(keep_best, local_sum, torch.zeros_like(sel_weights)), sel_weights)
-
-    sort_key = torch.where(local_valid,
+    sort_key = torch.where((local_expert >= 0) & (local_expert < E_local),
                            local_expert.to(torch.int32),
                            torch.tensor(E_local, device=device, dtype=torch.int32))
 
