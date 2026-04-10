@@ -98,7 +98,7 @@ def _moe_gemm1_swiglu_kernel(
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=4, num_stages=2),
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=8, num_stages=3),
     ],
-    key=['TOTAL_BLOCKS'],
+    key=['TOTAL_BLOCKS', 'TOTAL_ROUTED'],
     reset_to_zero=['out_ptr'],
 )
 @triton.jit
@@ -109,7 +109,7 @@ def _moe_gemm2_kernel(
     w_tok_ptr, sorted_tokens_ptr,
     b_expert_id_ptr, b_token_offset_ptr, b_num_tokens_ptr,
     out_ptr,
-    TOTAL_BLOCKS,
+    TOTAL_BLOCKS, TOTAL_ROUTED,
     stride_w2_e, stride_w2_h, stride_w2_i,
     stride_s2_e, stride_s2_hb, stride_s2_ib,
     stride_out_t, stride_out_h,
@@ -347,7 +347,7 @@ def run(
         sorted_weights_all, sorted_tokens,
         b_expert_id, b_token_offset, b_num_tokens,
         out_accum,
-        total_blocks,
+        total_blocks, total_routed,
         gemm2_weights.stride(0),       gemm2_weights.stride(1),    gemm2_weights.stride(2),
         gemm2_weights_scale.stride(0), gemm2_weights_scale.stride(1), gemm2_weights_scale.stride(2),
         out_accum.stride(0), out_accum.stride(1),
