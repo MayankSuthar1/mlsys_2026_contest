@@ -138,7 +138,7 @@ def _moe_gemm2_kernel(
         offs_i = ib * BLOCK_I + tl.arange(0, BLOCK_I)
 
         c_ptrs = workspace_ptr + (token_offset + offs_m)[:, None] * I + offs_i[None, :]
-        c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0)
+        c_f32  = tl.load(c_ptrs, mask=mask_m[:, None], other=0.0).to(tl.float32)
 
         w2_ptrs = w2_ptr + expert_id * stride_w2_e + offs_n[:, None] * stride_w2_h + offs_i[None, :] * stride_w2_i
         w2_fp8  = tl.load(w2_ptrs)
@@ -307,7 +307,7 @@ def run(
     sorted_tokens = sorted_tokens_all[:total_routed]
 
     # Allocate workspace
-    workspace = torch.empty((total_routed, I), dtype=torch.float32, device=device)
+    workspace = torch.empty((total_routed, I), dtype=torch.bfloat16, device=device)
     out_accum = torch.zeros((T, H), dtype=torch.float32, device=device)
 
     # GEMM1
