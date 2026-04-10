@@ -91,6 +91,16 @@ def _moe_gemm1_swiglu_kernel(
 # Grid: grouped 1D launch over (total_blocks, NUM_H_BLOCKS)
 # ---------------------------------------------------------------------------
 
+@triton.autotune(
+    configs=[
+        triton.Config({'GROUP_BLOCKS': 1}, num_warps=4, num_stages=2),
+        triton.Config({'GROUP_BLOCKS': 1}, num_warps=8, num_stages=3),
+        triton.Config({'GROUP_BLOCKS': 4}, num_warps=4, num_stages=2),
+        triton.Config({'GROUP_BLOCKS': 4}, num_warps=8, num_stages=3),
+    ],
+    key=['TOTAL_BLOCKS'],
+    reset_to_zero=['out_ptr'],
+)
 @triton.jit
 def _moe_gemm2_kernel(
     workspace_ptr,
@@ -346,9 +356,6 @@ def run(
         BLOCK_M=BLOCK_M,
         BLOCK_I=128,
         BLOCK_N=128,
-        GROUP_BLOCKS=4,
-        num_warps=8,
-        num_stages=3,
     )
 
     output.copy_(out_accum)
