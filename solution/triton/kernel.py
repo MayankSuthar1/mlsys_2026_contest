@@ -327,7 +327,7 @@ def run(
         BLOCK_K=128,
         BLOCK_I=128,
         num_warps=4,
-        num_stages=4,
+        num_stages=3,
     )
 
     # GEMM2
