@@ -100,8 +100,6 @@ def _moe_gemm1_swiglu_kernel(
     ],
     key=['TOTAL_BLOCKS', 'TOTAL_ROUTED'],
     reset_to_zero=['out_ptr'],
-    warmup=50,
-    rep=200,
 )
 @triton.jit
 def _moe_gemm2_kernel(
