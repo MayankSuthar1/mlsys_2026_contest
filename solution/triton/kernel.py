@@ -221,11 +221,11 @@ def _routing_and_dispatch(routing_logits, routing_bias, E_global, N_GROUP,
                                  ).unsqueeze(1).expand(-1, TOP_K).reshape(-1)
     flat_weights  = sel_weights.reshape(-1)
 
-    sorted_keys, perm = flat_sort_key.sort(stable=True)
+    perm = torch.argsort(flat_sort_key)
     sorted_tokens_all = flat_token[perm]
     sorted_weights_all = flat_weights[perm]
 
-    key_counts     = torch.bincount(sorted_keys, minlength=E_local + 1)
+    key_counts     = torch.bincount(flat_sort_key, minlength=E_local + 1)
     expert_counts  = key_counts[:E_local]
     expert_offsets = torch.zeros(E_local + 1, dtype=torch.int32, device=device)
     expert_offsets[1:] = torch.cumsum(expert_counts, dim=0)
