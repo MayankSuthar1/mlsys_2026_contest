@@ -42,9 +42,9 @@ def _moe_gemm1_swiglu_kernel(
     block_id = tl.program_id(0)
     ib       = tl.program_id(1)
 
-    expert_id    = tl.load(b_expert_id_ptr    + block_id)
-    token_offset = tl.load(b_token_offset_ptr + block_id)
-    num_tokens   = tl.load(b_num_tokens_ptr   + block_id)
+    expert_id    = tl.load(b_expert_id_ptr    + block_id, cache_modifier=".ca")
+    token_offset = tl.load(b_token_offset_ptr + block_id, cache_modifier=".ca")
+    num_tokens   = tl.load(b_num_tokens_ptr   + block_id, cache_modifier=".ca")
 
     offs_m = tl.arange(0, BLOCK_M)
     mask_m = offs_m < num_tokens
@@ -96,7 +96,6 @@ def _moe_gemm1_swiglu_kernel(
         triton.Config({'GROUP_BLOCKS': 1}, num_warps=4, num_stages=2),
         triton.Config({'GROUP_BLOCKS': 1}, num_warps=8, num_stages=3),
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=4, num_stages=2),
-        # Best observed config addition from results.tsv (sub-1ms breakthrough).
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=4, num_stages=3),
         triton.Config({'GROUP_BLOCKS': 4}, num_warps=8, num_stages=3),
         triton.Config({'GROUP_BLOCKS': 8}, num_warps=4, num_stages=2),
@@ -180,15 +179,15 @@ def _build_block_map_kernel(
 ):
     block_id = tl.program_id(0)
     # Linear scan to find expert (E_LOCAL=32, fast enough)
-    expert_id = tl.load(block_offsets_ptr + E_LOCAL)  # init to total_blocks as sentinel
+    expert_id = tl.load(block_offsets_ptr + E_LOCAL, cache_modifier=".ca")  # init to total_blocks as sentinel
     for e in tl.static_range(E_LOCAL):
-        start = tl.load(block_offsets_ptr + e)
-        end = tl.load(block_offsets_ptr + e + 1)
+        start = tl.load(block_offsets_ptr + e, cache_modifier=".ca")
+        end = tl.load(block_offsets_ptr + e + 1, cache_modifier=".ca")
         if block_id >= start and block_id < end:
             expert_id = e
-    block_within = block_id - tl.load(block_offsets_ptr + expert_id)
-    token_offset = tl.load(expert_offsets_ptr + expert_id) + block_within * BLOCK_M
-    count = tl.load(expert_counts_ptr + expert_id)
+    block_within = block_id - tl.load(block_offsets_ptr + expert_id, cache_modifier=".ca")
+    token_offset = tl.load(expert_offsets_ptr + expert_id, cache_modifier=".ca") + block_within * BLOCK_M
+    count = tl.load(expert_counts_ptr + expert_id, cache_modifier=".ca")
     remaining = count - block_within * BLOCK_M
     num_tokens = tl.where(remaining > BLOCK_M, BLOCK_M, remaining)
 
