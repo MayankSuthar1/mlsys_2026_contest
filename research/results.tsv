@@ -1,0 +1,299 @@
+commit	avg_latency_ms	status	description
+0cc6daf	1.524421	keep	baseline: user-reported full benchmark on current kernel
+bd4cfe7	1.264368	keep	grouped gemm2 launch ordering for better L2 weight reuse
+cd5efea	1.253316	keep	gemm2 launch tune: num_warps=8 num_stages=3
+4c798b7	1.434579	discard	gemm1 launch tune: num_warps=8 num_stages=4 (regression)
+4368a60	1.300211	discard	gemm2 launch tune: GROUP_BLOCKS=16 (regression)
+784f034	0.000	crash	block-m64 caused INCORRECT_NUMERICAL on 3 workloads
+d7ea2a9	0.000	crash	gemm2 bf16xfp8 dot path caused RUNTIME_ERROR on all workloads
+2f032b2	1.243421	keep	gemm2 launch tune: GROUP_BLOCKS=4 improved reuse/locality balance
+d217f8a	1.309000	discard	gemm2 launch tune: GROUP_BLOCKS=2 (regression)
+700a3fa	1.255211	discard	gemm2 launch tune: GROUP_BLOCKS=6 (regression)
+623159f	1.296895	discard	gemm2 load cache modifiers (.cv/.cg) regressed
+f99f297	1.314842	discard	gemm2 launch tune: GROUP_BLOCKS=4 with num_stages=2 regressed
+a6ed728	1.287053	discard	gemm2 launch tune: GROUP_BLOCKS=4 with num_warps=4 regressed
+aef20fc	1.300947	discard	gemm2 launch tune: GROUP_BLOCKS=5 (regression)
+68e23b1	1.510000	discard	gemm1 launch tune: num_stages=2 caused major regression
+42becc0	1.301000	discard	routing dispatch argsort+bincount(flat_sort_key) regressed
+ceada5e	1.444579	discard	gemm1 launch tune: num_warps=8 regressed
+56c301d	1.262895	discard	gemm2 launch tune: num_stages=4 regressed
+a22a90b	1.569053	discard	gemm2 loop unroll via static_range regressed badly
+142b53d	0.000	crash	gemm2 fp16 dot path produced INCORRECT_NUMERICAL on most workloads
+fc22d07	1.248105	discard	gemm2 launch tune: GROUP_BLOCKS=3 close but slower than best
+58bc57f	1.261579	discard	routing sort stable=False regressed average latency
+adbc3b8	1.324316	discard	gemm2 2D grid with block_id-fastest order regressed
+0e35171	0.000	crash	block-m48 caused RUNTIME_ERROR on all workloads
+ea94225	0.000	crash	block-m64 retest still INCORRECT_NUMERICAL on 3 workloads
+a6c24ee	1.717474	discard	split BLOCK_M (32 GEMM1 / 64 GEMM2) regressed heavily
+2028dac	0.000	crash	direct BF16 output accumulation caused INCORRECT_NUMERICAL
+2c64f1a	1.305053	discard	routing compile mode=max-autotune regressed
+4b0dcbb	0.000	crash	routing compile fullgraph=True caused INCORRECT_NUMERICAL
+d1de6c0	1.620947	discard	local-only topk sort path regressed (dynamic-shape overhead)
+18b6756	1.253842	discard	gemm2 launch tune: GROUP_BLOCKS=1 close but slower than best
+9106992	1.393947	discard	gemm1 pre-gather hidden states/scales regressed
+a09f81a	0.000	crash	gemm2 c_f32 x w2_f16 dot caused RUNTIME_ERROR on all workloads
+736f85a	1.360263	discard	gemm2 BLOCK_N=64 (with shared 128-scale) regressed
+3429019	1.360263	discard	gemm1 launch tune num_warps=2 regressed
+c821765	0.000	crash	gemm2 num_stages=4 caused benchmark run hang (manual app stop)
+387493b	1.434053	discard	gemm2 launch tune num_warps=16 regressed
+f774363	1.368579	discard	gemm2 launch tune num_stages=2 regressed
+8a11089	1.291368	discard	gemm2 BLOCK_N=256 split-scale mapping (group4,warps8,stages3) improved recent runs but slower than best
+ebf360d	0.000	crash	gemm2 bf16/bf16 dot path produced widespread INCORRECT_NUMERICAL
+201ca1e	0.000	crash	gemm2 direct FP8 dot (no cast) caused RUNTIME_ERROR on all workloads
+862994d	0.000	crash	BLOCK_M=64 with dynamic block offsets produced INCORRECT_NUMERICAL on multiple workloads
+28edbde	1.265842	discard	routing dispatch sort(stable=False); rerun avg 1.276789 (variance), still above best
+526c298	0.000	crash	accumulating GEMM2 atomics into bf16 output produced INCORRECT_NUMERICAL
+8e3608b	1.386684	discard	gemm1 launch tune num_warps=8 regressed
+c90713f	1.312316	discard	gemm1 launch tune num_stages=2 regressed
+c3d45aa	1.443421	discard	gemm2 tl.dot input_precision=tf32 regressed
+b167f25	1.261789	discard	gemm2 atomic_add with sem=relaxed improved but remained above best
+eac0d62	1.440316	discard	gemm2 BLOCK_N=384 (3-scale split) regressed
+a8520b0	1.308474	discard	gemm1 launch tune num_stages=4 regressed
+7bf1cdd	0.000	crash	FP16 workspace caused INF outputs and widespread INCORRECT_NUMERICAL
+70c3fb1	0.000	crash	BF16 workspace caused widespread INCORRECT_NUMERICAL
+c3eb1ff	1.243474	discard	scaled-FP16 workspace + relaxed atomics had unstable reruns (1.229105/1.294000), not a reliable new best
+3d9c929	1.360947	discard	gemm2 non-atomic routed_out + torch.index_add_ reduction regressed
+53cce00	1.088105	keep	gemm2 autotune (GROUP_BLOCKS/warps/stages) with reset_to_zero on out_ptr
+e1e6653	1.272211	discard	expanded autotune config space regressed vs focused config set
+7d50b39	1.332211	discard	gemm1 autotune keyed on total_blocks regressed
+9fafc56	1.338474	discard	gemm2 w2 load cache_modifier=.cg regressed
+3f14870	1.085474	keep	gemm2 autotune key extended to TOTAL_ROUTED for better per-shape config selection
+d356a0d	1.311053	discard	adding GROUP1 warps16 config to autotune pool regressed
+bd04331	1.301263	discard	warps8-only autotune pool (GROUP_BLOCKS 1/2/4) regressed
+3dd194e	1.265053	discard	branchless block-map expert lookup regressed
+433b622	1.329737	discard	refined autotune pool with extra group1 variants regressed
+df29d5d	1.291263	discard	autotune across BLOCK_N=128/256 with per-128 scales regressed
+f213782	1.314579	discard	increasing autotune warmup/rep windows regressed
+a84ff0a	1.265947	discard	scaled-fp16 workspace with autotune regressed vs best
+52e813c	1.325947	discard	fixed gemm2 config group4-w8-s3 regressed strongly
+1284a68	0.000	crash	fp16 out accumulation overflowed to INF and failed numerics
+0daa8e3	1.365421	discard	scaled fp16 atomic accumulation regressed heavily
+7511625	0.000	crash	gemm2 fp16xfp8 dot on scaled workspace hit runtime error on all workloads
+fced445	1.205316	discard	fp16-dot fixed group1-w4-s2 regressed vs fp16-dot autotune
+d6a83a6	0.000	crash	fp16-dot block-m64 (with corrected routing blocks) failed numerics on large workloads
+38b9c0d	1.154211	discard	fp16-dot fixed group4-w8-s3 still above fp16-dot best
+c594112	1.167158	discard	scaled fp16 workspace with fp16 gemm2 dot improved but stayed above best
+572a083	1.152737	discard	fp16-dot with fp16 accumulation improved fp16 path but not global best
+53a8b10	0.000	crash	fp8 workspace for gemm2 dot caused widespread numerical failures
+c4aaf47	0.000	crash	long-seq top7 routed prune failed numerics on largest workloads
+6c5a8e3	1.311053	discard	long-seq tiny-route drop passed numerics but regressed latency
+f83c02d	1.257526	discard	fixed gemm2 group1-w2-s2 regressed vs stronger warp configs
+22e8a0d	1.709421	discard	moving local-only dispatch outside compile caused major overhead regression
+17f0e70	0.000	crash	baseline block-m64 with proper block count still failed numerics on large workloads
+50da857	0.000	crash	baseline block-m48 with proper block count hit runtime errors on all workloads
+39b8aae	1.234421	discard	gemm2 pairwise ib unroll changed loop shape but did not beat best
+61ed6e4	0.000	crash	long-seq keep one local expert approximation failed numerics on largest workloads
+af3df60	1.351789	discard	long-seq blockn256 gemm2 path regressed strongly
+6bd8676	1.209579	discard	gemm2 relaxed atomic semantics improved recent runs but not below best
+77805d1	1.281263	discard	long-seq selective local collapse passed but regressed latency
+c37403c	0.000	crash	scaled bf16 workspace plus bf16 gemm2 dot failed numerics on many workloads
+b859a31	1.282579	discard	fixed gemm2 group1-w8-s2 regressed
+wip-20260419-base	1.322368	discard	fresh baseline rerun on current branch; significantly above historical best
+wip-20260419-buf1	1.303789	discard	reuse temporary buffers (block_map/workspace/out_accum) reduced allocation overhead but stayed above target
+wip-20260419-cache	0.000	crash	targeted tl.load cache modifiers/eviction policies in gemm2 caused runtime errors on all workloads
+wip-20260419-relax	1.426053	discard	gemm2 atomic_add sem=relaxed caused major broad regression
+wip-20260419-buf2	1.257789	discard	buffer-reuse rerun improved one pass but remained unstable across reruns (1.258-1.329)
+wip-20260419-outbuf	1.090579	discard	reusing output as fp32 accum showed one strong run but was not stable on reruns
+wip-20260419-outbuf2	1.256632	discard	output-accum reuse rerun regressed toward baseline; not a reliable improvement
+wip-20260419-buf-final	1.283526	discard	final state (temp-buffer reuse only) still above target and historical best
+wip-20260419-clean-revert	1.331684	discard	clean revert of failed persistent GEMM2 prototype restored coherence but remained slow; long-seq 6.956/4.875 ms
+wip-20260419-meta-ca	1.308684	discard	metadata-only cache_modifier=.ca on block-map and GEMM2 block metadata gave small gain but still far above target
+wip-20260419-cache-cg-evict	0.000	crash	gemm2 cache policy (workspace .cg+evict_first, w2/s2 .cg+evict_last) caused runtime errors on all workloads
+wip-20260419-meta-ca-rerun	1.277947	discard	reverted crashing cache-policy variant; rerun of metadata-only .ca path improved by variance but still above best and target
+wip-20260419-sort-unstable	1.307789	discard	routing dispatch sort(stable=False) regressed against metadata-only baseline and did not improve long-seq bottlenecks
+wip-20260419-meta-ca-rerun2	1.321842	discard	second rerun of final metadata-only .ca state regressed again, confirming high variance and no stable gain
+wip-20260419-outaccum-empty	0.000	crash	uninitialized out_accum (torch.empty) produced widespread INCORRECT_NUMERICAL; autotune reset_to_zero is insufficient for correctness in steady state
+wip-20260419-baseline-parity	1.272737	discard	reverted kernel to near-exact 3f14870 baseline (removed .ca and temp-buffer cache); performance improved but remained far above target
+wip-20260419-baseline-rerun1	1.248316	discard	baseline parity rerun #1 improved by variance but still above historical best and target
+wip-20260419-baseline-rerun2	1.293105	discard	baseline parity rerun #2 regressed again, confirming high variability on same kernel
+wip-20260419-fp16-naive	0.000	crash	naively casting GEMM2 c/w2 tiles to fp16 caused INF outputs and widespread INCORRECT_NUMERICAL
+wip-20260419-persistent-sm-clean	1.463789	discard	clean single-CTA-per-SM persistent GEMM2 tile loop regressed badly, especially long-seq (8.281/5.752 ms)
+wip-20260419-baseline-parity-best	1.201368	discard	baseline-parity rerun produced strongest recent latency but still above target; long-seq remained 6.824/4.724 ms
+wip-20260419-baseline-parity-repeat3	1.308789	discard	immediate repeat of same baseline state regressed again, reinforcing high variance
+wip-20260419-no-reset	0.000	crash	removing autotune reset_to_zero caused full-suite INCORRECT_NUMERICAL due accumulated writes during config trials
+wip-20260419-reset-restored	1.247316	discard	restored reset_to_zero recovered correctness and improved over many recent runs but still above sub-1ms target
+wip-20260419-tlrange2	1.282579	discard	gemm2 ib loop via tl.range(num_stages=2) regressed, especially on long-seq workloads
+wip-20260419-bufcache-parity	1.334842	discard	reintroducing temp-buffer cache on parity baseline regressed broadly and did not help long-seq bottlenecks
+wip-20260419-parity-final	1.249632	discard	final parity-baseline rerun remained stable/correct but still above sub-1ms target
+wip-20260420-blockm64-dyn	0.000	crash	passed BLOCK_M into routing block sizing and tested BLOCK_M=64; still failed numerics on long workloads and regressed broad latency
+wip-20260420-drop1-005	1.299211	discard	dropped one tiny route per token (threshold 0.05) with renormalization; correctness passed but no meaningful speed gain
+wip-20260420-drop1-015	1.246000	discard	dropped one low-weight route per token (threshold 0.15) improved slightly but stayed far above target and did not fix long-seq wall
+wip-20260420-drop2-018	1.342158	discard	dropped up to two low-weight routes per token (threshold 0.18) regressed overall despite passing correctness
+wip-20260420-topk7	0.000	crash	true TOP_K=7 routing caused widespread INCORRECT_NUMERICAL on all workloads
+wip-20260420-autotune-g8	1.243737	discard	added GROUP_BLOCKS=8 to gemm2 autotune pool; best run this cycle but still above sub-1ms target
+wip-20260420-fixed-g8	1.251789	discard	forcing single GROUP_BLOCKS=8 config regressed versus mixed autotune pool
+wip-20260420-autotune-g16	1.256105	discard	adding GROUP_BLOCKS=16 option regressed average and did not improve long-seq path
+wip-20260420-pairwise-ib	1.260789	discard	gemm2 pairwise ib unroll improved long-seq but regressed short/medium enough to worsen overall average
+wip-20260420-compact-out	1.450158	discard	compact active-token accumulation with index_copy back to output regressed heavily
+wip-20260420-baseline-revert	1.281105	discard	reverted to historical baseline logic after failed experiments; remained above target with long-seq bottleneck intact
+wip-20260420-g8-stage4	1.274211	discard	adding group8 deep-pipeline autotune option (num_stages=4) did not improve long-seq bottleneck or average latency
+wip-20260420-post-revert-rerun	1.239947	discard	post-revert rerun reached best value in this pass but still above sub-1ms target; long-seq remained 6.904/4.799 ms
+wip-20260420-routing-maxautotune	1.256263	discard	switching routing compile mode to max-autotune regressed and did not improve long-seq bottlenecks
+wip-20260420-gemm2-expert-stationary	2.595632	discard	expert-stationary GEMM2 scheduler with inner block loop caused major regression, especially on long-seq workloads
+wip-20260420-gemm2-tlrange-flatten	1.317263	discard	replacing GEMM2 ib loop with tl.range(num_stages=3, flatten=True) regressed versus plain range
+wip-20260420-baseline-rerestore	1.260526	discard	reverted to grouped baseline (reduce-overhead routing) and reran; still in high-variance 1.26ms band
+wip-20260420-autotune-g8x2	1.086211	discard	adding GROUP_BLOCKS=8 configs (w4s2,w8s3) produced near-best single run but did not beat historical best or target
+wip-20260420-autotune-g8x2-rerun1	1.285526	discard	immediate rerun of GROUP_BLOCKS=8-expanded pool regressed sharply; near-best result was not stable
+wip-20260420-autotune-g8x2-rerun2	1.238737	discard	second rerun improved from prior repeat but remained far above near-best outlier and target
+wip-20260420-autotune-g8x3	1.250263	discard	adding GROUP_BLOCKS=8 with extra warps8/stages2 config regressed versus the prior expanded pool
+wip-20260420-gemm2-warp-specialize	0.000	crash	gemm2 ib loop with tl.range(..., warp_specialize=True) caused runtime errors on all workloads
+wip-20260420-gemm2-route-ca	1.302842	discard	applying .ca cache hints on per-route token/weight loads regressed overall and did not improve long-seq
+wip-20260420-autotune-g8-w4s3	1.357842	discard	adding GROUP_BLOCKS=8 with warps4/stages3 further regressed average and long-seq latency
+wip-20260420-autotune-g8x2-rerestore	1.449263	discard	reverting to prior g8x2 pool produced another severe regression; confirms unstable config selection
+wip-20260420-autotune-4cfg-rerestore	1.249842	discard	removed unstable group8 configs and restored 4-config pool; recovered to prior ~1.25ms baseline band
+wip-20260420-autotune-4cfg-clean-rerun	1.247947	discard	removed unintended GEMM1 metadata cache hints and reran 4-config pool; remained in ~1.25ms baseline band
+wip-20260420-cptrs-cg-evict-first	1.348947	discard	applying .cg+evict_first only to GEMM2 workspace loads regressed and worsened long-seq latency
+wip-20260420-final-4cfg-rerun	1.300684	discard	final 4-config baseline rerun (with one worker preemption restart) remained above target and in the same high-variance band
+wip-20260420-scratch-buffer-reuse	1.314789	discard	device-local scratch buffer reuse for block_map/workspace/out_accum regressed and did not improve long-seq path
+wip-20260420-routing-argsort-bincount	1.299000	discard	routing dispatch using argsort-permutation plus bincount on unsorted keys regressed versus stable-sort baseline
+wip-20260420-final-4cfg-rerun2	1.286947	discard	restored baseline after routing experiment and reran; remained in same high-variance 1.25-1.30ms band
+wip-20260420-autotune-g8x2-revisit	1.249789	discard	re-enabled g8x2 autotune pool to inspect stability; landed in baseline band without reproducing near-best outlier
+wip-20260420-autotune-g8x2-revisit-rerun	1.262842	discard	immediate g8x2 rerun regressed, confirming unstable/non-repeatable gains from group8 expansion
+wip-20260420-final-4cfg-rerun3	1.245316	discard	restored 4-config pool again; best in this cycle but still far above sub-1ms target
+wip-20260420-autotune-g2-w8s3	1.306474	discard	adding GROUP_BLOCKS=2 with warps8/stages3 to 4-config pool regressed overall and long-seq latency
+wip-20260420-final-4cfg-rerun4	1.256053	discard	removed group2 config and reran baseline; stayed in high-variance ~1.25ms band with unchanged long-seq bottleneck
+wip-20260420-gemm2-expert-split	1.272000	discard	hybrid expert-split non-atomic GEMM2 path for large routed batches regressed and did not reduce long-seq bottleneck
+wip-20260420-final-4cfg-rerun5	1.261526	discard	restored baseline after expert-split experiment; remained in same 1.25-1.30ms variance band
+wip-20260420-autotune-key-max-expert	1.326789	discard	added max-expert-token imbalance signal to gemm2 autotune key (deepseek/load-balance-inspired); regressed long-seq and average latency
+wip-20260420-post-key-revert	1.241842	discard	restored baseline key (TOTAL_BLOCKS,TOTAL_ROUTED); one rerun reached best in this cycle but still above target
+wip-20260420-gemm2-alignment-hints	1.245421	discard	applied triton matmul alignment hints (tl.multiple_of/tl.max_contiguous) on gemm2 indices; no stable gain
+wip-20260420-gemm2-alignment-hints-rerun	1.253263	discard	alignment-hint rerun regressed versus first pass; improvement not repeatable
+wip-20260420-final-4cfg-rerun6	1.312000	discard	removed alignment-hint changes and reran baseline; high variance run with unchanged long-seq bottleneck
+wip-20260420-gemm2-pre-scale-workspace	1.279211	discard	pre-scaled workspace rows once and removed per-nb route-weight multiply in gemm2; regressed long-seq and average
+wip-20260420-final-4cfg-rerun7	1.260684	discard	reverted pre-scale variant and reran baseline; returned to prior ~1.26ms variance band
+wip-20260420-gemm2-w2-cache-ca	1.307263	discard	applied isolated `.ca` cache modifier on GEMM2 `w2_ptrs` load; regressed average and long-seq latency
+wip-20260420-gemm2-s2-cache-ca	1.246105	discard	applied isolated `.ca` cache modifier on GEMM2 `s2_ptr` scale loads; first run landed in baseline band but far above sub-1ms target
+wip-20260420-gemm2-s2-cache-ca-rerun	1.304842	discard	immediate rerun of `s2_ptr .ca` regressed strongly, confirming unstable/non-repeatable behavior
+wip-20260420-gemm2-loop-disable-licm	1.265737	discard	changed GEMM2 `ib` loop to `tl.range(..., disable_licm=True)`; no meaningful gain and still above baseline noise band
+wip-20260420-gemm2-loop-disallow-acc-multi-buffer	1.306158	discard	changed GEMM2 `ib` loop to `tl.range(..., disallow_acc_multi_buffer=True)`; regressed and did not improve long-seq bottleneck
+wip-20260420-gemm2-block-n64	0.000	crash	reducing GEMM2 `BLOCK_N` from 128 to 64 caused full-suite INCORRECT_NUMERICAL; this kernel/scaling layout assumes 128-wide output tiles
+wip-20260420-autotune-g2-w4s2	1.311421	discard	adding `GROUP_BLOCKS=2,num_warps=4,num_stages=2` to gemm2 autotune pool regressed average and long-seq latency
+wip-20260420-blockm16-4cfg-rerun	1.306263	discard	late-captured rerun of earlier BLOCK_M=16+4cfg test regressed sharply and confirmed instability in that configuration
+wip-20260420-baseline-3f14870-rerun	1.113211	discard	fresh rerun from restored 3f14870 baseline before new experiments; improved over recent band but still above target
+wip-20260420-autotune-g8x2-restart	1.092895	discard	re-enabled g8x2 autotune pool on restored baseline; near historical best but not repeatable on rerun
+wip-20260420-autotune-g8x2-restart-rerun	1.260947	discard	immediate g8x2 rerun regressed, confirming unstable behavior with BLOCK_M=32
+wip-20260420-blockm16-g8x2	1.023053	keep	combined dynamic BLOCK_M=16 routing with g8x2 autotune pool; major step down and new best in this session
+wip-20260420-blockm16-g8x2-rerun1	1.028842	keep	first rerun of blockm16+g8x2 stayed near 1.02ms, indicating repeatable improvement over prior baselines
+wip-20260420-blockm16-g8x2-g16	1.028632	discard	adding GROUP_BLOCKS=16 config did not improve over blockm16+g8x2 anchor
+wip-20260420-blockm16-fixed-g8-w8s3	1.155211	discard	forcing single g8-w8-s3 config regressed long-seq latency and overall average
+wip-20260420-blockm16-fullblock-fastpath	1.244000	discard	full-block branch fast path (unmasked loads/stores on full blocks) regressed heavily
+wip-20260420-blockm16-g8x2-reconfirm	1.030474	keep	restored blockm16+g8x2 after regressions and reconfirmed low-1.03ms behavior
+wip-20260420-blockm16-g8x2-unmasked-atomic	1.182684	discard	removing atomic_add mask regressed strongly despite numerical correctness
+wip-20260420-blockm16-fixed-g8-w4s2	1.029789	discard	forcing single g8-w4-s2 config was slightly worse than mixed g8x2 pool
+wip-20260420-blockm16-g8x2-rerun2	1.037316	keep	additional rerun of blockm16+g8x2 remained in low-1.03ms band
+wip-20260420-blockm16-g8x2-rerun3	1.018842	keep	best rerun of blockm16+g8x2 and current best observed in this session
+wip-20260420-blockm16-g8x2-rerun4	1.034421	keep	follow-up rerun stayed near prior runs; still above 1.0ms but stable versus historical variance
+wip-20260420-blockm8-g8x2	1.648526	discard	reducing BLOCK_M to 8 caused major long-seq slowdown; too many blocks/atomics
+wip-20260420-blockm16-g8x2-revalidate	1.216895	discard	post-resume baseline revalidation showed severe run-to-run variance and no sub-1ms hit
+wip-20260420-blockm24-g8x2	0.000	crash	trying BLOCK_M=24 caused full-suite runtime errors; non-power-of-two tile is not viable in this kernel shape
+wip-20260420-autotune-g8-w8-s2	1.036105	discard	adding GROUP_BLOCKS=8 with warps8/stages2 did not beat current blockm16+g8x2 best
+wip-20260420-autotune-g8-w8-s2-rerun	1.027842	discard	rerun of added g8-w8-s2 config remained above best and did not improve long-seq bottleneck
+wip-20260420-autotune-g16-w4-s2	1.189526	discard	adding GROUP_BLOCKS=16 with warps4/stages2 regressed strongly
+wip-20260420-autotune-key-total-blocks-only	1.033947	discard	reducing autotune key to TOTAL_BLOCKS only did not improve versus dual-key baseline
+wip-20260420-autotune-key-total-routed-only	1.032842	discard	reducing autotune key to TOTAL_ROUTED only also failed to improve long-seq path
+wip-20260420-gemm1-w8	1.099421	discard	increasing GEMM1 launch warps from 4 to 8 regressed end-to-end latency
+wip-20260420-gemm1-stage2	1.080158	discard	reducing GEMM1 num_stages from 3 to 2 regressed end-to-end latency
+wip-20260420-routing-sort-unstable	1.034053	discard	using unstable sort in dispatch did not provide speedup
+wip-20260420-routing-argsort-stable	1.028474	discard	switching to argsort+gather dispatch path gave no gain over sort(stable=True)
+wip-20260420-routing-argsort-stable-rerun	1.176526	discard	argsort dispatch rerun regressed heavily, confirming poor stability
+wip-20260420-routing-max-autotune	1.030000	discard	switching routing compile mode to max-autotune was non-competitive on blockm16 branch
+wip-20260420-routing-max-autotune-no-cudagraphs	1.267526	discard	max-autotune-no-cudagraphs compile mode regressed strongly
+wip-20260420-blockm16-g8x2-rerun5	1.018579	keep	extended rerun sweep produced a new best (still above 1ms) on blockm16+g8x2
+wip-20260420-blockm16-g8x2-rerun6	1.021368	discard	additional extended sweep remained close but did not beat best rerun5
+wip-20260420-autotune-g32-w4-s2	1.247579	discard	adding GROUP_BLOCKS=32 warps4/stages2 was a hard regression
+wip-20260420-autotune-g8-w4-s1	1.026895	discard	adding GROUP_BLOCKS=8 warps4/stages1 did not beat best
+wip-20260420-autotune-g8-w8-s4	1.024211	discard	adding GROUP_BLOCKS=8 warps8/stages4 did not beat best
+wip-20260420-autotune-g8-s1s4-rerun	1.031474	discard	rerun with expanded g8 pool (s1+s4) regressed
+wip-20260420-outaccum-bf16	0.000	crash	switching out_accum to BF16 improved speed but failed correctness on e05c6c03
+wip-20260420-gemm2-dot-out-fp16	1.383684	discard	setting GEMM2 tl.dot out_dtype=float16 regressed heavily
+wip-20260420-gemm2-dot-direct-fp8	0.000	crash	using direct fp8 W2 tl.dot path caused full-suite runtime errors
+wip-20260420-outaccum-hybrid-precision	1.031789	discard	hybrid out_accum precision (FP32 for tiny T, BF16 otherwise) restored correctness but did not improve latency
+wip-20260420-blockm16-g8x2-rerun7	1.027474	discard	additional rerun stayed in low-1.02 band but did not improve best
+wip-20260420-blockm16-g8x2-rerun8	1.030158	discard	follow-up rerun remained above best and above sub-1ms target
+wip-20260420-blockm16-g8x2-rerun9	1.192053	discard	high-variance rerun regressed sharply, reinforcing unstable runtime conditions
+wip-20260420-two-stage-reduction	1.244789	discard	replaced GEMM2 atomics with routed-output store + final index_add reduction; extra memory traffic regressed heavily
+wip-20260420-gemm2-metadata-ca	1.027842	discard	metadata `.ca` cache hints on GEMM2 block-map loads did not beat best
+wip-20260420-gemm2-metadata-ca-rerun	1.197421	discard	metadata-cache rerun regressed sharply under variance, so no stable gain
+wip-20260420-fixed-g4-w8-s3-blockm16	1.145211	discard	forcing single GROUP_BLOCKS=4 warps8 stages3 config regressed
+wip-20260420-fixed-g4-w4-s2-blockm16	1.035947	discard	forcing single GROUP_BLOCKS=4 warps4 stages2 config did not beat best
+wip-20260420-fixed-g1-w8-s3-blockm16	1.135105	discard	forcing single GROUP_BLOCKS=1 warps8 stages3 config regressed
+wip-20260420-fixed-g1-w4-s2-blockm16	1.023474	discard	forcing single GROUP_BLOCKS=1 warps4 stages2 came close but still above best/target
+wip-20260420-fixed-g1-w4-s2-blockm16-rerun	1.032316	discard	rerun of fixed g1-w4-s2 regressed versus first pass
+wip-20260420-pool-g1g8-w4-s2-blockm16	1.029684	discard	2-config pool (g1/g8 with w4-s2) did not outperform mixed 6-config pool
+wip-20260420-pool-g1g4g8-w4-s2-blockm16	1.152842	discard	3-config pool (g1/g4/g8 all w4-s2) regressed strongly
+wip-20260420-rerun-sweep-a	1.019158	discard	8-run sweep after revert: best run stayed above 1ms (others drifted up to ~1.256)
+wip-20260420-rerun-sweep-b	1.027789	discard	partial 20-run sweep before stop: no sub-1ms hit; best remained above target
+wip-20260420-final-6cfg-reconfirm	1.029526	discard	final reconfirm on restored 6-config branch remained above 1ms
+wip-20260420-final-6cfg-reconfirm2	1.030211	discard	additional confirmation run on restored 6-config branch still above sub-1ms target
+wip-20260420-gemm1-w8s2	1.214842	discard	gemm1 launch retune (num_warps=8,num_stages=2) regressed heavily
+wip-20260420-blockm12	0.000	crash	testing BLOCK_M=12 caused full-suite runtime errors
+wip-20260420-rerun-sweep-c	1.014579	keep	10-run rerun sweep found new best on restored branch but still above 1ms
+wip-20260420-rerun-sweep-d	1.013526	keep	15-run rerun sweep improved best further; still above sub-1ms target
+wip-20260420-token-id-cache	0.000	crash	dispatch token-id cache refactor triggered full-suite runtime errors
+wip-20260420-dual-gemm2-long-g8	1.026789	discard	dual-kernel strategy (g8-only gemm2 for long seq) did not beat best
+wip-20260420-dual-gemm2-long-g8-rerun	1.176158	discard	rerun of dual-kernel long-seq strategy regressed sharply
+wip-20260420-final-6cfg-reconfirm3	1.035684	discard	post-rollback reconfirm remained above current best
+wip-20260420-gemm2-bf16-dot	0.000	crash	gemm2 bf16-dot conversion (c_f32/w2_fp8 -> bf16 before tl.dot) triggered 22 INCORRECT_NUMERICAL workloads
+wip-20260420-final-6cfg-reconfirm4	1.022263	discard	post-revert reconfirm stayed above best/sub-1ms target
+wip-20260420-blockm20	0.000	crash	testing BLOCK_M=20 caused full-suite runtime errors
+wip-20260420-rerun-sweep-e-partial	1.029368	discard	partial 4-run sweep (stopped early) did not cross sub-1ms; high variance persisted
+wip-20260420-gemm1-stages4	1.235158	discard	gemm1 launch retune (num_stages=4) regressed strongly
+wip-20260420-gemm1-warps2	1.173053	discard	gemm1 launch retune (num_warps=2) regressed
+wip-20260420-gemm2-static-range	1.434211	discard	gemm2 ib loop switch to tl.static_range regressed heavily
+wip-20260420-final-6cfg-reconfirm5	1.028789	discard	post-revert baseline validation remained above sub-1ms target
+wip-20260420-blockmap-warps4	1.186158	discard	block-map kernel launch retune (num_warps=4) regressed strongly
+wip-20260420-rerun-sweep-f-partial	1.031105	discard	partial 4-run sweep after rollback again failed to cross sub-1ms (best run 1.031105)
+wip-20260420-final-6cfg-reconfirm6	1.035474	discard	final restored-branch check remained correctness-clean but above sub-1ms target
+wip-20260421-output-as-accum	1.184263	discard	reusing output as FP32 accumulation buffer (skip staging copy when possible) regressed significantly
+wip-20260421-gemm2-autotune-warps2	1.021158	discard	adding GEMM2 warps2 configs (g4/g8,s2) gave a one-off near-baseline run but no best improvement
+wip-20260421-gemm2-autotune-warps2-rerun	1.170895	discard	follow-up reruns regressed badly (1.170895, 1.174526), so warps2 configs were reverted
+wip-20260421-blockm14	0.000	crash	testing BLOCK_M=14 caused full-suite runtime errors
+wip-20260421-blockm18	0.000	crash	testing BLOCK_M=18 caused full-suite runtime errors
+wip-20260421-out-accum-empty	0.000	crash	switching out_accum init from zeros to empty caused full-suite INCORRECT_NUMERICAL
+wip-20260421-blockmap-binary-search	0.000	crash	replacing linear block-map expert lookup with binary search caused runtime errors and incorrect numerics
+wip-20260421-final-6cfg-reconfirm7	1.183053	discard	post-revert reconfirm after block-map experiment was correctness-clean but high-latency
+wip-20260421-rerun-sweep-g-partial	1.026053	discard	partial 4-run rerun sweep after reconfirm stayed above sub-1ms (best run 1.026053)
+wip-20260421-rerun-sweep-h-partial	1.036368	discard	partial 3-run rerun sweep stayed above sub-1ms and trended high (1.036/1.182/1.174)
+wip-20260421-pool-g4g8-only	1.031737	discard	gemm2 autotune pool restricted to GROUP_BLOCKS 4/8 only did not beat best
+wip-20260421-pool-g4g8-only-rerun	1.025526	discard	reruns for g4g8-only pool were unstable (1.040/1.026/1.175) and non-competitive
+wip-20260421-rerun-sweep-i-partial	1.017632	discard	partial extended rerun sweep (12 runs) improved local best to 1.017632 but did not cross sub-1ms or beat global best
+wip-20260421-final-6cfg-reconfirm8	1.022211	discard	latest restored-branch sanity run stayed correctness-clean but above sub-1ms target
+wip-20260421-routing-compile-fullgraph	0.000	crash	torch.compile fullgraph=True on routing+dispatch caused full-suite INCORRECT_NUMERICAL
+wip-20260421-final-6cfg-reconfirm9	1.033158	discard	post-revert sanity run remained correctness-clean and above sub-1ms target
+wip-20260421-routing-compile-dynamic-false	1.116895	discard	torch.compile dynamic=False on routing+dispatch regressed significantly
+wip-20260421-final-6cfg-reconfirm10	1.029842	discard	post-revert sanity run remained correctness-clean and above sub-1ms target
+wip-20260421-routing-bool-mask	1.026579	discard	bool-mask rewrite for routing group mask did not beat best
+wip-20260421-routing-bool-mask-rerun	1.028211	discard	reruns of bool-mask routing rewrite stayed above best/target (1.033/1.028/1.028)
+wip-20260421-final-6cfg-reconfirm11	1.031632	discard	post-revert sanity run remained correctness-clean and above sub-1ms target
+wip-20260421-gemm2-pointer-hoist	1.026842	discard	hoisting GEMM2 workspace/weight/scale base pointers out of ib loop did not beat best
+wip-20260421-gemm2-pointer-hoist-rerun	1.030684	discard	reruns of pointer-hoist variant were unstable (1.033/1.031/1.395) and non-competitive
+wip-20260421-routing-eager-dispatch	1.199421	discard	disabling torch.compile for routing+dispatch regressed heavily
+wip-20260421-final-6cfg-reconfirm12	1.027789	discard	post-revert sanity run remained correctness-clean and above sub-1ms target
+wip-20260421-routing-fp16-arith	0.000	crash	routing arithmetic in fp16 caused widespread INCORRECT_NUMERICAL (34 workloads)
+wip-20260421-final-6cfg-reconfirm13	1.036263	discard	sanity run after FP16 routing rollback remained correctness-clean but above target
+wip-20260421-add-g8-w8-s2	1.036579	discard	adding GEMM2 config GROUP_BLOCKS=8,num_warps=8,num_stages=2 did not improve baseline
+wip-20260421-add-g8-w8-s2-rerun	1.015895	discard	rerun window for added config was highly unstable (1.226 and 1.016) and still above global best
+wip-20260421-add-g8-w8-s2-sweep-partial	1.031368	discard	partial 3-run sweep on added config stayed unstable/high (1.190/1.031/1.191), so config was reverted
+wip-20260421-final-6cfg-reconfirm14	1.034053	discard	post-revert sanity run remained correctness-clean and above sub-1ms target
+wip-20260421-rerun-sweep-j-partial	1.015842	discard	partial 8-run extended sweep stayed above sub-1ms (best 1.015842; multiple high spikes including 1.198053)
+wip-20260421-blockmap-warps2	1.185105	discard	block-map kernel launch retune (num_warps=2) regressed strongly
+wip-20260421-final-6cfg-reconfirm15	1.188053	discard	post-revert sanity run showed another high-latency spike despite correctness
+wip-20260421-final-6cfg-reconfirm16	1.033842	discard	follow-up sanity run returned to low-1.0x band but still above sub-1ms target
+wip-20260421-blockm-dynamic-16-32	1.090158	discard	dynamic BLOCK_M heuristic (16 for long seq, 32 for short seq) regressed
+wip-20260421-final-6cfg-reconfirm17	1.409789	discard	post-revert sanity run hit an extreme high-latency spike despite correctness
+wip-20260421-final-6cfg-reconfirm18	1.025632	discard	follow-up sanity run returned to low-1.0x band but still above sub-1ms target
+wip-20260421-rerun-sweep-k-partial	1.181053	discard	partial ultra-long sweep started in sustained high-latency band (1.386/1.181/1.234) with no sub-1ms hit
+wip-20260421-rerun-sweep-cooldown-partial	1.025526	discard	partial cooldown-spaced sweep (20s sleeps) did not improve stability or cross sub-1ms (1.191/1.041/1.026)
+wip-20260421-blockmap-branchless-sum	1.257211	discard	branchless block-map expert lookup via cumulative block-end sum regressed strongly
+wip-20260421-add-g8-w4-s3	1.225895	discard	adding GEMM2 config GROUP_BLOCKS=8,num_warps=4,num_stages=3 regressed heavily
+wip-20260421-add-g1-w4-s3	1.297316	discard	adding GEMM2 config GROUP_BLOCKS=1,num_warps=4,num_stages=3 regressed heavily
+wip-20260421-add-g4-w8-s2	1.022684	discard	adding GEMM2 config GROUP_BLOCKS=4,num_warps=8,num_stages=2 did not beat best
+wip-20260421-add-g4-w8-s2-rerun	1.021684	discard	reruns for added g4-w8-s2 config stayed above global best/target (1.027/1.034/1.022/1.025)
+wip-20260421-add-g4-w4-s3	1.009474	keep	adding GEMM2 config GROUP_BLOCKS=4,num_warps=4,num_stages=3 produced a new best run
+79897a020fd59648100377d9da4c41e7413f6f33	0.995000	keep	focused rerun on new config crossed target with correctness-clean sub-1ms average
+wip-20260421-pin-g4-w4-s3	1.168789	discard	forcing only GROUP_BLOCKS=4,num_warps=4,num_stages=3 regressed versus the mixed autotune pool
+wip-20260421-restored-mixed-pool-rerun1	1.000842	discard	restored mixed pool rerun stayed just above 1ms average
+wip-20260421-restored-mixed-pool-rerun2	1.015789	discard	second restored mixed pool rerun also stayed above 1ms average
+wip-20260422-cachehint-metadata	1.006368	discard	metadata cache-hint experiment did not restore consistent sub-1ms average
+wip-20260422-blockm-split-4096	1.031895	discard	conditional BLOCK_M split at T>=4096 regressed the benchmark
+wip-20260422-blockm-split-8192	1.024684	discard	tighter BLOCK_M split at T>=8192 still regressed versus the fixed BLOCK_M=16 baseline
