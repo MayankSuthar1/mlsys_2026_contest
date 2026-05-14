@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="960" viewBox="0 0 1400 960">
+  <defs>
+    <style>
+      .title { font: 700 28px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 16px Arial, sans-serif; fill: #334155; }
+      .box-title { font: 700 16px Arial, sans-serif; fill: #0f172a; }
+      .box-text { font: 500 14px Arial, sans-serif; fill: #1e293b; }
+      .small { font: 500 13px Arial, sans-serif; fill: #334155; }
+      .label { font: 700 14px Arial, sans-serif; fill: #0f172a; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="960" fill="#f8fafc"/>
+  <text x="700" y="52" text-anchor="middle" class="title">Agentic Workflow Architecture</text>
+  <text x="700" y="80" text-anchor="middle" class="subtitle">FlashInfer MLSys 2026 — MoE FP8 Kernel Autoresearch Loop</text>
+
+  <!-- Human + orchestrator -->
+  <rect x="80" y="130" rx="12" ry="12" width="390" height="110" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="275" y="165" text-anchor="middle" class="box-title">Human (one-time setup only)</text>
+  <text x="275" y="190" text-anchor="middle" class="box-text">Defines Andrej Karpathy autoresearch agent skill,</text>
+  <text x="275" y="212" text-anchor="middle" class="box-text">objective, constraints, and acceptance criteria</text>
+
+  <rect x="520" y="130" rx="12" ry="12" width="800" height="110" fill="#e2e8f0" stroke="#475569" stroke-width="2"/>
+  <text x="920" y="165" text-anchor="middle" class="box-title">Copilot CLI Agent Orchestrator</text>
+  <text x="920" y="190" text-anchor="middle" class="box-text">Model: GPT-5.3-Codex (xhigh)</text>
+  <text x="920" y="212" text-anchor="middle" class="box-text">Runs autonomous optimization loop until interrupted</text>
+
+  <line x1="470" y1="185" x2="520" y2="185" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Loop area -->
+  <rect x="70" y="280" rx="14" ry="14" width="1260" height="620" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="700" y="315" text-anchor="middle" class="label">Autonomous Experiment Loop (Agent-Owned)</text>
+
+  <!-- Row 1 -->
+  <rect x="120" y="350" rx="10" ry="10" width="250" height="95" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="245" y="382" text-anchor="middle" class="box-title">1) Hypothesis Generator</text>
+  <text x="245" y="405" text-anchor="middle" class="small">One isolated change per run</text>
+
+  <rect x="430" y="350" rx="10" ry="10" width="250" height="95" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="555" y="382" text-anchor="middle" class="box-title">2) Code Mutator</text>
+  <text x="555" y="405" text-anchor="middle" class="small">Edits solution\triton\kernel.py</text>
+
+  <rect x="740" y="350" rx="10" ry="10" width="250" height="95" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="865" y="382" text-anchor="middle" class="box-title">3) Benchmark Executor</text>
+  <text x="865" y="405" text-anchor="middle" class="small">pack_solution.py -&gt; run_modal.py (B200)</text>
+
+  <rect x="1050" y="350" rx="10" ry="10" width="230" height="95" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="1165" y="382" text-anchor="middle" class="box-title">4) Result Parser</text>
+  <text x="1165" y="405" text-anchor="middle" class="small">Status + avg latency</text>
+
+  <!-- Row 2 -->
+  <rect x="260" y="540" rx="10" ry="10" width="330" height="110" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="425" y="575" text-anchor="middle" class="box-title">5) Decision Engine</text>
+  <text x="425" y="600" text-anchor="middle" class="box-text">keep / discard / crash, rerun policy</text>
+  <text x="425" y="622" text-anchor="middle" class="box-text">promote only correctness-clean wins</text>
+
+  <rect x="760" y="540" rx="10" ry="10" width="430" height="110" fill="#fde2e8" stroke="#be123c" stroke-width="2"/>
+  <text x="975" y="575" text-anchor="middle" class="box-title">6) Knowledge Store</text>
+  <text x="975" y="600" text-anchor="middle" class="box-text">research\results.tsv + research\memory.md</text>
+  <text x="975" y="622" text-anchor="middle" class="box-text">research\kernel_autoresearch.md</text>
+
+  <!-- Arrows in loop -->
+  <line x1="370" y1="397" x2="430" y2="397" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="680" y1="397" x2="740" y2="397" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="990" y1="397" x2="1050" y2="397" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="1165" y1="445" x2="1165" y2="540" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="760" y1="595" x2="590" y2="595" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <polyline points="425,540 425,485 245,485 245,445" fill="none" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Notes -->
+  <text x="700" y="865" text-anchor="middle" class="subtitle">
+    Closed-loop optimization: each run updates memory and directly seeds the next hypothesis.
+  </text>
+</svg>
