@@ -1,4 +1,4 @@
-# Auto-kernel (FlashInfer AI Kernel Generation Contest MLSys 2026)
+# Auto-kernel ([MLSys 2026 - FlashInfer AI Kernel Generation Contest](https://mlsys26.flashinfer.ai/))
 
 This repository contains our submission for the FlashInfer AI Kernel Generation Contest at MLSys 2026. We competed in the `fused_moe` track and developed a high-performance Triton kernel for FP8 Mixture-of-Experts routing.
 
